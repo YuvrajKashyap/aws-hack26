@@ -7,8 +7,8 @@ import sqlite3
 import streamlit as st
 import streamlit.components.v1 as components
 st.set_page_config(page_title='Operations dashboard',layout='wide')
-st.markdown('<style>.block-container{max-width:1600px;padding-top:1rem}</style>',unsafe_allow_html=True)
-st.info('PRANAV’S DASHBOARD DESIGN / SHARED ASSESSMENT AND LOCAL LEDGER / Synthetic data, simulated actions. No component fault or replacement is established.')
+st.markdown('<style>.block-container{max-width:1600px;padding-top:3rem}</style>',unsafe_allow_html=True)
+st.caption('Operations · Synthetic observations and simulated reviews')
 root=Path(__file__).resolve().parents[1]
 result=st.session_state.get('ai4i_result')
 rows=[]
