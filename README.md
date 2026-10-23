@@ -6,6 +6,7 @@ Manufacturing Track 2: predictive maintenance from sensor evidence to simulated 
 - [Architecture and build plan](docs/track-2-plan.md)
 - [Codex starter prompt](docs/codex-starter.md)
 - [Team branch workflow](CONTRIBUTING.md): personal name branches (`yuvraj`, `abhinav`, etc.), reviewed integration into `main`.
+- [Workshop usage and Kiro](docs/workshop-usage.md): verified live Bedrock setup, dashboard restart, and remaining integration.
 
 ## Run the offline demo
 

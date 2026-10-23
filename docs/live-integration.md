@@ -1,6 +1,6 @@
 # Later authorized AWS integration
 
-AWS integration has not been run. Local tests cannot establish model access or AgentCore runtime readiness. Offline mode imports no AWS SDK and never reads AWS credentials. The optional adapter is original application code; it contains no organizer-kit code or derived kit prompts.
+Direct Bedrock inference and the application explanation flow were verified in the authorized workshop on October 23, 2026. AgentCore runtime integration has not been run. See [workshop usage](workshop-usage.md) for the verified setup and restart commands. Offline mode imports no AWS SDK and never reads AWS credentials. The optional adapter is original application code; it contains no organizer-kit code or derived kit prompts.
 
 Follow the sequence already linked in [the track plan](track-2-plan.md):
 
@@ -10,7 +10,7 @@ Follow the sequence already linked in [the track plan](track-2-plan.md):
 4. Only after those checks, adapt the approved runtime handler to `run_scenario`. Do not expose arbitrary paths or unvalidated actions in the handler. Record direct inference and runtime invocation results separately. AgentCore packaging and deployment are intentionally not included in this foundation.
 5. Follow kit invocation, troubleshooting, credential refresh, and cleanup instructions in that approved environment. Do not copy the kit, restricted derivatives, account outputs, credentials, or logs into this public repo.
 
-For a later approved application test, install `requirements-aws.txt`, configure the actual authorized `BEDROCK_MODEL_ID`, `AWS_REGION=us-east-1`, `DEMO_MODE=bedrock`, and `BEDROCK_SINGLE_PROCESS_ACK=true`. `.env.example` lists timeout/rate controls. Never put credential values in that file. The current task does not authorize setting up or reading credentials.
+For an approved application test, install `requirements-aws.txt`, configure the actual authorized `BEDROCK_MODEL_ID`, `AWS_REGION=us-east-1`, `DEMO_MODE=bedrock`, and `BEDROCK_SINGLE_PROCESS_ACK=true`. `.env.example` lists timeout/rate controls. Never put credential values in that file. Use the workshop-provided identity without extracting or sharing credentials.
 
 The adapter uses [Bedrock Converse](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html) and [botocore timeout/retry configuration](https://docs.aws.amazon.com/botocore/latest/reference/config.html). SDK retries are disabled so application retries also pass through the shared gate. Defaults are two attempts, 3-second connect and 10-second read timeouts, at least two seconds between starts, concurrency one, a bounded queue wait, and a bounded process cache. Timeouts are SDK network timeouts, not a hard wall-clock deadline for arbitrary injected clients. Admission fails to deterministic explanation if the gate is busy beyond its wait budget.
 
