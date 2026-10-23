@@ -1,0 +1,189 @@
+{
+ "CRAC-3|ALT-001|high|us.openai.gpt-5.6-luna": {
+  "diagnosis": {
+   "unit_id": "CRAC-3",
+   "alert_id": "ALT-001",
+   "source": "llm",
+   "model": "us.openai.gpt-5.6-luna",
+   "root_cause": "Fan motor bearing wear, supported by elevated and worsening vibration, lubricant wear-metal, and temperature signals.",
+   "confidence": "high",
+   "summary": "ALT-001 fired because CRAC-3 shows a high heuristic bearing-wear signal: vibration and lubricant wear-metal are elevated versus the healthy baseline, with temperature also trending upward. Recommend taking the unit out of service for approved, safe fan-bearing replacement when cooling redundancy or workload migration is confirmed; BRG-6205 is currently out of stock, so a human should approve standard or expedited procurement before maintenance.",
+   "evidence": [
+    "Predictive risk is 0.776, above the 0.049 threshold.",
+    "The predictor identifies bearing_wear and cites lube wear-metal +123% versus healthy baseline and vibration +125% versus healthy baseline.",
+    "The projected remaining-life range is 23.2\u201331.4 hours; this is a heuristic wear-threshold projection, not validated RUL.",
+    "Recent readings show vibration and lube wear-metal rising across the sampled history, with temperature increasing as well.",
+    "BRG-6205 fan motor bearing assembly stock is 0; simulated lead time is 3 days, with a 1-day expedite option."
+   ],
+   "next_steps": [
+    "Human approval: confirm N+1 cooling redundancy or migrate workloads before isolation.",
+    "Apply lockout/tagout, inspect the fan assembly, and replace the worn BRG-6205 bearing assembly when the part is available.",
+    "Re-lubricate, refit the guard, and perform the manual-recommended 30-minute vibration check against baseline before returning CRAC-3 to service.",
+    "Treat the projected remaining-life range as a heuristic and escalate the maintenance decision because the unit is already high severity."
+   ],
+   "citations": [
+    {
+     "id": "SIM-MAN-4.2",
+     "title": "Fan motor bearing wear: symptoms"
+    },
+    {
+     "id": "SIM-MAN-4.3",
+     "title": "Bearing assembly replacement (summary)"
+    },
+    {
+     "id": "SIM-MAN-9.1",
+     "title": "Safe workload migration before maintenance"
+    }
+   ],
+   "part": {
+    "name": "Fan motor bearing assembly",
+    "in_stock": 0,
+    "lead_time_days": 3,
+    "expedite_days": 1,
+    "expedite_fee_usd": 450,
+    "part_id": "BRG-6205"
+   },
+   "numbers": {
+    "risk": 0.776,
+    "risk_kind": "heuristic_drift_rule",
+    "severity": "high",
+    "threshold": 0.049,
+    "rul_range_hours": [
+     23.2,
+     31.4
+    ],
+    "rul_method": "wear-threshold projection (heuristic, not validated RUL)",
+    "source": "predict.py (not written by the LLM)"
+   }
+  },
+  "events": [
+   {
+    "ts": "2026-10-23T19:00:00Z",
+    "agent": "diagnosis",
+    "status": "running",
+    "message": "CRAC-3: diagnosing alert ALT-001 (high) with us.openai.gpt-5.6-luna",
+    "data": {}
+   },
+   {
+    "ts": "2026-10-23T19:00:00Z",
+    "agent": "diagnosis",
+    "status": "running",
+    "message": "CRAC-3: called run_predict()",
+    "data": {
+     "tool": "run_predict",
+     "args": {}
+    }
+   },
+   {
+    "ts": "2026-10-23T19:00:00Z",
+    "agent": "diagnosis",
+    "status": "running",
+    "message": "CRAC-3: called get_sensor_history({\"samples\": 6})",
+    "data": {
+     "tool": "get_sensor_history",
+     "args": {
+      "samples": 6
+     }
+    }
+   },
+   {
+    "ts": "2026-10-23T19:00:00Z",
+    "agent": "diagnosis",
+    "status": "running",
+    "message": "CRAC-3: called search_manual({\"query\": \"CRAC-3 high vibration alert diagnosis bearing lubrication t)",
+    "data": {
+     "tool": "search_manual",
+     "args": {
+      "query": "CRAC-3 high vibration alert diagnosis bearing lubrication temperature maintenance"
+     }
+    }
+   },
+   {
+    "ts": "2026-10-23T19:00:00Z",
+    "agent": "diagnosis",
+    "status": "running",
+    "message": "CRAC-3: called search_manual({\"query\": \"cooling unit vibration bearing replacement inspection lubri)",
+    "data": {
+     "tool": "search_manual",
+     "args": {
+      "query": "cooling unit vibration bearing replacement inspection lubrication"
+     }
+    }
+   },
+   {
+    "ts": "2026-10-23T19:00:00Z",
+    "agent": "diagnosis",
+    "status": "running",
+    "message": "CRAC-3: called check_parts_stock({\"part_id\": \"BRG-6205\"})",
+    "data": {
+     "tool": "check_parts_stock",
+     "args": {
+      "part_id": "BRG-6205"
+     }
+    }
+   },
+   {
+    "ts": "2026-10-23T19:00:00Z",
+    "agent": "diagnosis",
+    "status": "done",
+    "message": "CRAC-3: Fan motor bearing wear, supported by elevated and worsening vibration, lubricant wear-metal, and temperature signals. (confidence high, 3 manual refs)",
+    "data": {
+     "unit_id": "CRAC-3",
+     "alert_id": "ALT-001",
+     "source": "llm",
+     "model": "us.openai.gpt-5.6-luna",
+     "root_cause": "Fan motor bearing wear, supported by elevated and worsening vibration, lubricant wear-metal, and temperature signals.",
+     "confidence": "high",
+     "summary": "ALT-001 fired because CRAC-3 shows a high heuristic bearing-wear signal: vibration and lubricant wear-metal are elevated versus the healthy baseline, with temperature also trending upward. Recommend taking the unit out of service for approved, safe fan-bearing replacement when cooling redundancy or workload migration is confirmed; BRG-6205 is currently out of stock, so a human should approve standard or expedited procurement before maintenance.",
+     "evidence": [
+      "Predictive risk is 0.776, above the 0.049 threshold.",
+      "The predictor identifies bearing_wear and cites lube wear-metal +123% versus healthy baseline and vibration +125% versus healthy baseline.",
+      "The projected remaining-life range is 23.2\u201331.4 hours; this is a heuristic wear-threshold projection, not validated RUL.",
+      "Recent readings show vibration and lube wear-metal rising across the sampled history, with temperature increasing as well.",
+      "BRG-6205 fan motor bearing assembly stock is 0; simulated lead time is 3 days, with a 1-day expedite option."
+     ],
+     "next_steps": [
+      "Human approval: confirm N+1 cooling redundancy or migrate workloads before isolation.",
+      "Apply lockout/tagout, inspect the fan assembly, and replace the worn BRG-6205 bearing assembly when the part is available.",
+      "Re-lubricate, refit the guard, and perform the manual-recommended 30-minute vibration check against baseline before returning CRAC-3 to service.",
+      "Treat the projected remaining-life range as a heuristic and escalate the maintenance decision because the unit is already high severity."
+     ],
+     "citations": [
+      {
+       "id": "SIM-MAN-4.2",
+       "title": "Fan motor bearing wear: symptoms"
+      },
+      {
+       "id": "SIM-MAN-4.3",
+       "title": "Bearing assembly replacement (summary)"
+      },
+      {
+       "id": "SIM-MAN-9.1",
+       "title": "Safe workload migration before maintenance"
+      }
+     ],
+     "part": {
+      "name": "Fan motor bearing assembly",
+      "in_stock": 0,
+      "lead_time_days": 3,
+      "expedite_days": 1,
+      "expedite_fee_usd": 450,
+      "part_id": "BRG-6205"
+     },
+     "numbers": {
+      "risk": 0.776,
+      "risk_kind": "heuristic_drift_rule",
+      "severity": "high",
+      "threshold": 0.049,
+      "rul_range_hours": [
+       23.2,
+       31.4
+      ],
+      "rul_method": "wear-threshold projection (heuristic, not validated RUL)",
+      "source": "predict.py (not written by the LLM)"
+     }
+    }
+   }
+  ]
+ }
+}
