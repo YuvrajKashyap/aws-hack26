@@ -192,7 +192,7 @@ class Diagnosis:
     # ----- public -----
     def run(self, out, history):
         u, ts = out["unit_id"], out["tick"]["ts"]
-        key = f"{u}|{out.get('alert_id')}|{out.get('severity')}|{MODEL_ID}"
+        key = f"{u}|{out.get('alert_id')}|{out.get('severity')}|{ts}|{MODEL_ID}"
         if self.use_cache and key in self.cache:     # replay the saved run, tool calls included
             hit = self.cache[key]
             ev = [dict(e, message=e["message"] + " [replayed]") for e in hit["events"]]

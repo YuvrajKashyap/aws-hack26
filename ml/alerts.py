@@ -87,7 +87,15 @@ def recommend(pred, sev, reason):
     }
 
 
-def build_email(unit, sev, pred, rec, alert_id, ts):
+def approval_link(alert_id, unit):
+    """Set APPROVAL_URL_TEMPLATE, e.g. https://host/approve/{alert_id}. Else tell the reader where to go."""
+    tpl = os.getenv("APPROVAL_URL_TEMPLATE")
+    if tpl:
+        return tpl.format(alert_id=alert_id, unit_id=unit)
+    return f"open the maintenance dashboard and review alert {alert_id}"
+
+
+def build_email(unit, sev, pred, rec, alert_id, ts, approval=None):
     mode = pred["failure_mode"].replace("_", " ")
     lo, hi = pred["rul_range_hours"]
     subject = f"[{sev.upper()}] {unit} {mode}: act within about {lo:.0f} h"
@@ -104,7 +112,7 @@ def build_email(unit, sev, pred, rec, alert_id, ts):
         *[f"  - {w}" for w in rec["why"]],
         "",
         "Nothing has been ordered or scheduled. An operator must approve the plan first:",
-        "  {APPROVAL_URL}",
+        f"  {approval or approval_link(alert_id, unit)}",
         "",
         "This is a prototype using simulated sensor data and a simulated parts catalog.",
     ]
@@ -174,11 +182,14 @@ class AlertManager:
             subject, body = build_email(u, sev, pred, rec, out.get("alert_id") or "ALT-?", ts)
             sent = self.notifier.send((u, self.episode[u], "high"), subject, body, ts)
             if sent:
-                how = ("simulated, no real email sent" if sent["mode"] == "simulated"
-                       else sent["mode"])
+                if sent["mode"] == "sns":
+                    msg = "High-severity alert published to the SNS email topic (real email to subscribers)"
+                elif sent["mode"] == "simulated":
+                    msg = f"High-severity alert emailed to {', '.join(sent['to'])} (simulated, no real email sent)"
+                else:
+                    msg = f"High-severity email NOT sent ({sent['error']}); logged only"
                 out["events"].append({
-                    "ts": ts, "agent": "notifier", "status": "alert",
-                    "message": f"High-severity alert emailed to {', '.join(sent['to'])} ({how})",
+                    "ts": ts, "agent": "notifier", "status": "alert", "message": msg,
                     "data": {"unit_id": u, "subject": sent["subject"], "mode": sent["mode"]}})
                 out["email"] = sent
         return out

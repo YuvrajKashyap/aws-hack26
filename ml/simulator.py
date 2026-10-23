@@ -12,6 +12,7 @@ One tick = 10 simulated minutes. ALL channels are simulated (AI4I has no vibrati
 lube data). Say so in the pitch.
 """
 import datetime as dt
+import os
 
 import numpy as np
 
@@ -23,11 +24,25 @@ FAULT_TICKS = 24             # ticks for severity to ramp 0 -> 1 (4 simulated ho
 
 
 class Simulator:
-    def __init__(self, units=("CRAC-1", "CRAC-2", "CRAC-3", "CRAC-4"), seed=7,
+    def __init__(self, units=("CRAC-1", "CRAC-2", "CRAC-3", "CRAC-4"), seed=None,
                  start_wear=60.0, start=None):
+        """No seed (default): every run is different, and timestamps start at the current time.
+        seed=7 or SIM_SEED=7: identical every run (use this on stage so cached replays match)."""
+        env = os.getenv("SIM_SEED")
+        if seed is None and env:
+            seed = int(env)
+        fixed = seed is not None
+        if seed is None:
+            seed = int(np.random.SeedSequence().entropy % (2 ** 31))
         self.units = list(units)
         self.seed, self.start_wear = seed, start_wear
-        self.start = start or dt.datetime(2026, 10, 23, 14, 0, tzinfo=dt.timezone.utc)
+        if start is None:
+            if fixed:
+                start = dt.datetime(2026, 10, 23, 14, 0, tzinfo=dt.timezone.utc)
+            else:
+                now = dt.datetime.now(dt.timezone.utc).replace(second=0, microsecond=0)
+                start = now - dt.timedelta(minutes=now.minute % TICK_MIN)
+        self.start = start
         self.reset()
 
     def reset(self):
