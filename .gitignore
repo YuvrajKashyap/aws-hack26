@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.env
+.env.*
+!.env.example
+data/
+*.sqlite*
+*.log
+.coverage
+htmlcov/
+*.pyc
+outbox*.jsonl
+cache_test_*.json
