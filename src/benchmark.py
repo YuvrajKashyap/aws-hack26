@@ -14,6 +14,7 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 from .ai4i import FEATURES, TARGET, SEED, fit_baseline, metrics
+from .policy import compare_policies
 
 
 def candidates():
@@ -60,9 +61,12 @@ def compare(path):
     for row in rows:
         scores = fitted[row['name']].predict_proba(X.loc[splits['test']])[:, 1]
         row['test'] = metrics(y.loc[splits['test']], scores, row['threshold'])
+    # Selectable operating policies: RF, GB, and a validation-selected RF+GB hybrid.
+    operating_policies = compare_policies(path, baseline)
     return {'selected_model': winner, 'selection': 'Validation F2; ties use validation average precision then name',
         'scope': 'Five fixed configurations, not an exhaustive search or universally best models',
         'test_caveat': 'Existing test set was previously inspected; this comparison is exploratory, not a fresh external validation',
+        'operating_policies': operating_policies,
         'dataset_sha256': baseline.report['dataset_sha256'], 'rows': len(frame),
         'features': FEATURES, 'seed': SEED, 'sklearn_version': baseline.report['sklearn_version'],
         'split_ids': splits, 'results': rows, 'dummy': baseline.report['most_frequent_baseline'],

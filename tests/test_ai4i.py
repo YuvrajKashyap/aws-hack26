@@ -133,6 +133,30 @@ def test_dataset_dashboard_replays_without_aws(dataset, tmp_path, monkeypatch):
     monkeypatch.setenv('DEMO_LEDGER_PATH', str(tmp_path / 'dashboard.sqlite'))
     app = AppTest.from_file(str(page), default_timeout=30).run()
     assert not app.exception
+    # Title names the console; explorer is not shown before an assessment.
+    assert any('Machine maintenance console' in t.value for t in app.title)
+    assert len(app.get('iframe')) == 0
+    # Assess the default record and policy.
     app.button[0].click().run()
     assert not app.exception
-    assert any('Completed dataset assessment' in item.value for item in app.subheader)
+    # The decision metric is populated and the explorer iframe is rendered.
+    assert any(getattr(m, 'label', '') == 'Decision' for m in app.metric)
+    iframes = app.get('iframe')
+    assert iframes and 'GLOBAL ASSESSMENT' in iframes[0].proto.srcdoc
+
+
+def test_dataset_dashboard_hides_stale_result_when_record_changes(dataset, tmp_path, monkeypatch):
+    from pathlib import Path
+    from streamlit.testing.v1 import AppTest
+    monkeypatch.setenv('AI4I_CSV', str(dataset))
+    monkeypatch.setenv('DEMO_MODE', 'offline')
+    monkeypatch.setenv('DEMO_LEDGER_PATH', str(tmp_path / 'stale.sqlite'))
+    app = AppTest.from_file('pages/1_AI4I_Baseline.py', default_timeout=30).run()
+    app.button[0].click().run()
+    assert len(app.get('iframe')) == 1
+    # Changing the record selector must retract the previous result immediately.
+    record_select = app.selectbox[1]
+    record_select.select(record_select.options[1]).run()
+    assert not app.exception
+    assert len(app.get('iframe')) == 0
+    assert any('Selection changed' in w.value for w in app.warning)
