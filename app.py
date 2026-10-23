@@ -6,7 +6,12 @@ from src.orchestrator import SCENARIOS, configured_provider, run_scenario
 from src.explanation import SimulatedOutage
 
 st.set_page_config(page_title='Manufacturing / Track 2', page_icon='⚙', layout='wide')
+from src.ui import console_style, stages
+console_style()
 st.title('From sensor evidence to maintenance')
+st.markdown('<p class="intro">Follow a fictional press from a healthy window to a maintenance concern. Every recommendation carries its evidence; every action stays simulated.</p>', unsafe_allow_html=True)
+st.markdown('[Open the 3D machine maintenance console →](AI4I_Baseline)')
+stages()
 mode = os.getenv('DEMO_MODE', 'offline')
 st.info(f'{mode.upper()} MODE · FICTIONAL MACHINE · SIMULATED ACTIONS ONLY')
 st.caption('SIM-PRESS-01 · Original simulation · Diagnosis and planning use deterministic rules. '

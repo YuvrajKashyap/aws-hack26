@@ -12,3 +12,6 @@ htmlcov/
 *.pyc
 outbox*.jsonl
 cache_test_*.json
+node_modules/
+*.blend1
+artifacts/
