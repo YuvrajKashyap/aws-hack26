@@ -30,6 +30,7 @@ try:
     from src.explorer import render_machine_explorer
     from src.scene import render_3d_explorer
     from src.notifications import NotificationOutbox, build_review_message
+    from src.cases import FAILURE_MODES, case_catalog, describe_record, preview_outcomes, search_records
 except ImportError:
     st.warning('Install the optional dataset dependencies: python -m pip install -r requirements-ml.txt')
     st.stop()
@@ -87,16 +88,35 @@ with st.sidebar:
         format_func=lambda n: f'{_FRIENDLY[n]} ({_TECHNICAL[n]})', key='console_policy')
     heldout = bundle.heldout.set_index('UDI').sort_index()
     ids = heldout.index.tolist()
-    uid = st.selectbox('Dataset record (not a machine ID or time sequence)', ids,
-                      index=ids.index(2016) if 2016 in ids else 0, key='console_record')
-    st.caption('Demo: record 2016 requests review; record 2 is below the RF threshold. Independent observations, not a timeline.')
+    query = st.text_input('Search held-out records', key='console_search',
+                          placeholder='e.g. HDF, heat, overstrain, L, 2016, healthy, failure',
+                          help='Filter by failure-mode code (TWF HDF PWF OSF RNF), mode name, product type L/M/H, '
+                               'UDI prefix, product ID, or the words failure / healthy. Terms combine.')
+    matches = search_records(heldout, query)
+    if matches.empty:
+        st.warning('No held-out record matches. Clear the search or try a mode code such as HDF.')
+        matches = heldout
+    match_ids = matches.index.tolist()
+    st.caption(f'{len(match_ids)} of {len(ids)} held-out records · {int(matches["Machine failure"].sum())} labelled failure')
+    # Options are human-readable labels; the record id is recovered from the label so the
+    # search filter, demo buttons, and test harness all speak the same value.
+    labels = {int(i): describe_record(heldout.loc[i]) for i in ids}
+    options = [labels[i] for i in match_ids]
+    if st.session_state.get('console_record') not in options:
+        st.session_state['console_record'] = labels[2016] if 2016 in match_ids else options[0]
+    chosen = st.selectbox('Dataset record (not a machine ID or time sequence)', options, key='console_record')
+    uid = int(chosen.split(' · ', 1)[0])
+    st.caption('Labels shown are dataset ground truth for selection only; they never reach the classifier. '
+               'Independent observations, not a timeline.')
     assess = st.button('Assess record', type='primary')
     def start_demo(record):
-        st.session_state['console_record'] = record if record in ids else ids[0]
+        st.session_state['console_search'] = ''
+        st.session_state['console_record'] = labels[record if record in labels else ids[0]]
         st.session_state['console_policy'] = 'random_forest'
         st.session_state['run_demo_requested'] = True
     st.button('▶ Run demo · flagged case', on_click=start_demo, args=(2016,), width='stretch')
     st.button('Compare below-threshold case', on_click=start_demo, args=(2,), width='stretch')
+    st.caption('More cases, one per documented failure mode, are in the Demo cases tab.')
     assess = assess or st.session_state.pop('run_demo_requested', False)
     view = st.radio('Inspection view', ['3D assembly', '2D schematic'])
     st.caption('Model evaluation and tradeoffs are in Model lab.')
@@ -142,7 +162,41 @@ inspection_tab, action_tab, cases_tab = st.tabs(['Inspect assembly', 'Remediatio
 with inspection_tab:
     components.html(render_explorer(zones, assessment), height=740 if view == '3D assembly' else 560, scrolling=True)
 with cases_tab:
-    st.subheader('Demonstrate the supported cases')
+    st.subheader('Failure case library · AI4I held-out records')
+    st.write('Each card is one held-out observation chosen for a documented dataset failure mode. '
+             'Read what the published dataset says caused the label, what the console is expected to do, '
+             'and where to look in the assembly. Demo a case to load it with the Catch more failures policy and assess it.')
+    st.caption('Failure-mode columns are used only to choose and label these cases. The classifier sees the six '
+               'process features alone. A dataset rule is how the synthetic data was generated, not a diagnosis.')
+    catalog = case_catalog(heldout, bundle.bounds)
+    def demo_case(record):
+        start_demo(record)
+    columns = st.columns(3)
+    for index, case in enumerate(catalog):
+        with columns[index % 3].container(border=True):
+            st.markdown(f'**{case.title}**')
+            st.caption(f'Record {case.record_id} · ' + (f'mode {case.mode}' if case.mode else case.case_id))
+            st.write(case.dataset_says)
+            st.write(case.expected)
+            st.caption('Watch for: ' + case.watch_for)
+            st.button('Demo this case', key=f'demo_case_{case.case_id}', on_click=demo_case,
+                      args=(case.record_id,), width='stretch')
+    with st.expander('What happens to every case under the current policy (no ledger writes)', expanded=False):
+        try:
+            table = preview_outcomes(catalog, heldout, active_policy, bundle.bounds, FEATURES)
+            st.dataframe(table, hide_index=True, width='stretch')
+            misses = table[(table['Dataset label'] == 'failure') & (table['Decision'] == 'Below threshold')]
+            if not misses.empty:
+                st.warning(f'{len(misses)} labelled failure(s) fall below the {_FRIENDLY[policy_name]} threshold. '
+                           'Documented misses are part of the demo: a below-threshold decision never declares equipment safe.')
+            st.caption('Scores come from the selected policy with its frozen validation threshold. Nothing here creates an order.')
+        except Exception as exc:
+            st.error('Preview could not be computed: ' + str(exc))
+    with st.expander('Documented failure modes in AI4I 2020'):
+        for code, info in FAILURE_MODES.items():
+            st.markdown(f'**{code} · {info["title"]}**  \n{info["rule"]}')
+    st.divider()
+    st.subheader('Resilience scenarios · fictional press simulation')
     st.write('Use Run demo for the AI4I flagged observation, then save a review and notification in Remediation & actions. Use Compare below-threshold case for the no-order path.')
     st.caption('The following scenarios are a separate fictional press simulation. They do not use the AI4I classifier or diagnose the illustrated assembly.')
     if st.button('Run resilience demo · all fictional cases'):
