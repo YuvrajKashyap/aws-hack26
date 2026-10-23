@@ -160,19 +160,30 @@ def fit_baseline(path: str | Path) -> Baseline:
     return Baseline(model, threshold, report, frame.loc[test].copy(), bounds)
 
 
-def run_record(bundle: Baseline, raw: dict, record_id: str, ledger_path: str | Path, *, provider=None) -> DatasetResult:
+def run_record(bundle: Baseline, raw: dict, record_id: str, ledger_path: str | Path, *,
+               provider=None, policy=None) -> DatasetResult:
     observation = Observation.model_validate(raw)
     values = observation.model_dump(by_alias=True)
     flags = [f'{name} outside training range [{low:g}, {high:g}]'
              for name, (low, high) in bundle.bounds.items() if not low <= values[name] <= high]
-    score = None if flags else float(bundle.model.predict_proba(pd.DataFrame([values]))[0, 1])
-    predicted = None if score is None else score >= bundle.threshold
-    model_id = bundle.report['model_id']
+    # An optional operating policy (random_forest, gradient_boosting, hybrid_rf_gb)
+    # supplies its own scorer, frozen threshold, and distinct model identity. The
+    # shared training-range bounds still govern abstention. Without a policy this
+    # falls back to the verified baseline random forest.
+    threshold = bundle.threshold if policy is None else policy.threshold
+    model_id = bundle.report['model_id'] if policy is None else policy.model_id
+    if flags:
+        score = None
+    elif policy is None:
+        score = float(bundle.model.predict_proba(pd.DataFrame([values]))[0, 1])
+    else:
+        score = policy.score_row(values)
+    predicted = None if score is None else score >= threshold
     identity = json.dumps([model_id, record_id, values], sort_keys=True)
     assessment_id = hashlib.sha256(identity.encode()).hexdigest()
     facts = {
         'prediction': 'Assessment abstained: input outside training range.' if score is None else
-            f'Classifier score {score:.4f}; validation-selected threshold {bundle.threshold:.2f}; predicted class {int(predicted)}.',
+            f'Classifier score {score:.4f}; validation-selected threshold {threshold:.2f}; predicted class {int(predicted)}.',
         'thermal': f'Observed air {observation.air:g} K; process {observation.process:g} K.',
         'mechanical': f'Observed rotation {observation.speed:g} rpm; torque {observation.torque:g} Nm.',
         'wear': f'Observed tool wear {observation.wear:g} minutes; product type {observation.kind}.'}
@@ -193,7 +204,7 @@ def run_record(bundle: Baseline, raw: dict, record_id: str, ledger_path: str | P
         reason='Simulated technician review: no verified asset manual, failure cause, part or slot.' if review else
                'Below experimental classifier threshold; this is not a declaration that equipment is safe.')
     order = Ledger(ledger_path).simulate(proposal)
-    return DatasetResult(record_id=record_id, model_id=model_id, score=score, threshold=bundle.threshold,
+    return DatasetResult(record_id=record_id, model_id=model_id, score=score, threshold=threshold,
         predicted_failure=predicted, observation=observation, explanation_mode=mode,
         statements=[f'{facts[key]} [AI4I:{record_id}:{key}]' for key in selected],
         limitations=LIMITATIONS, quality_flags=flags, order=order)

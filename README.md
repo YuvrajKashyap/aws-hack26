@@ -8,6 +8,7 @@ Manufacturing Track 2: predictive maintenance from sensor evidence to simulated 
 - [Team branch workflow](CONTRIBUTING.md): personal name branches (`yuvraj`, `abhinav`, etc.), reviewed integration into `main`.
 - [Workshop usage and Kiro](docs/workshop-usage.md): verified live Bedrock setup, dashboard restart, and remaining integration.
 - [AI4I dataset baseline](docs/ai4i-baseline.md): measured failure classification, setup commands and honest limitations.
+- [Five-model comparison](docs/model-comparison.md): reproducible benchmark, selection method and observed tradeoffs.
 - [AWS service decisions](docs/aws-decisions.md): selected services, deferred choices and actual deployment status.
 
 ## Run the offline demo
