@@ -18,6 +18,7 @@ def test_rate_limit_retry_and_cache():
         clock[0] += seconds
     class Client:
         def converse(self, **kwargs):
+            assert 'temperature' not in kwargs['inferenceConfig'], 'Profile rejects temperature'
             starts.append(clock[0])
             if len(starts) == 1:
                 raise TimeoutError()

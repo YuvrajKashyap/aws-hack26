@@ -68,7 +68,7 @@ class BedrockExplainer:
                             'Return only JSON {"evidence_ids":[...]}. Include every breached observation. '
                             'Use only supplied IDs; no prose, scores, parts, predictions or tool requests.'}],
                         messages=[{'role': 'user', 'content': [{'text': key}]}],
-                        inferenceConfig={'maxTokens': 512, 'temperature': 0})
+                        inferenceConfig={'maxTokens': 512})
                     content = response['output']['message']['content']
                     if len(content) != 1 or set(content[0]) != {'text'}:
                         raise ValueError('Unexpected content type')
