@@ -10,6 +10,7 @@ Manufacturing Track 2: predictive maintenance from sensor evidence to simulated 
 - [AI4I dataset baseline](docs/ai4i-baseline.md): measured failure classification, setup commands and honest limitations.
 - [Five-model comparison](docs/model-comparison.md): reproducible benchmark, selection method and observed tradeoffs.
 - [AWS service decisions](docs/aws-decisions.md): selected services, deferred choices and actual deployment status.
+- [PR5 ML integration](docs/pr5-integration.md): isolated ML brain/monitor/alerts/diagnosis, the shared simulated notification outbox, and what was kept, fixed and deferred.
 
 ## Run the offline demo
 

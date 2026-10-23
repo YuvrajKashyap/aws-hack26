@@ -160,3 +160,18 @@ def test_dataset_dashboard_hides_stale_result_when_record_changes(dataset, tmp_p
     assert not app.exception
     assert len(app.get('iframe')) == 0
     assert any('Selection changed' in w.value for w in app.warning)
+
+
+def test_dataset_dashboard_hides_stale_result_when_policy_changes(dataset, tmp_path, monkeypatch):
+    from streamlit.testing.v1 import AppTest
+    monkeypatch.setenv('AI4I_CSV', str(dataset))
+    monkeypatch.setenv('DEMO_MODE', 'offline')
+    monkeypatch.setenv('DEMO_LEDGER_PATH', str(tmp_path / 'stalep.sqlite'))
+    app = AppTest.from_file('pages/1_AI4I_Baseline.py', default_timeout=30).run()
+    app.button[0].click().run()
+    assert len(app.get('iframe')) == 1
+    # Switching the operating policy must retract the previous result too.
+    app.selectbox[0].select('gradient_boosting').run()
+    assert not app.exception
+    assert len(app.get('iframe')) == 0
+    assert any('Selection changed' in w.value for w in app.warning)

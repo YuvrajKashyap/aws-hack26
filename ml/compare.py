@@ -20,7 +20,7 @@ from sklearn.model_selection import StratifiedKFold
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-from train import FEATURES, SEED, lgbm, make_synthetic, prep
+from .train import FEATURES, SEED, lgbm, make_synthetic, prep
 
 warnings.filterwarnings("ignore")
 

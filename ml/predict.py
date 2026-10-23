@@ -12,12 +12,17 @@ HONEST LABELS (say these in the pitch):
   validated remaining-useful-life model. There are no run-to-failure labels.
 """
 import functools
+from pathlib import Path
 
-import joblib
 import numpy as np
 import pandas as pd
 
-from train import FEATURES, featurize
+from .train import FEATURES, featurize
+
+# Default serialized-model path, resolved relative to this package. The model is
+# NOT loaded at import; loading is deferred to predict()/_bundle() so importing
+# this module never requires joblib or the gated model.joblib binary.
+DEFAULT_MODEL_PATH = str(Path(__file__).resolve().parent / 'model.joblib')
 
 # ---- mapping assumptions: edit these to match the simulator's healthy values ----
 AMBIENT_K = 300.0          # AI4I air temperature, held constant
@@ -57,8 +62,12 @@ def _contributions(b, X, p0):
 
 
 @functools.lru_cache(maxsize=1)
-def _bundle(path="model.joblib"):
-    return joblib.load(path)
+def _bundle(path=None):
+    # joblib is imported here, not at module load, and only when a caller actually
+    # scores. Loading the serialized model stays behind this explicit call pending
+    # provenance review of model.joblib.
+    import joblib
+    return joblib.load(path or DEFAULT_MODEL_PATH)
 
 
 def to_ai4i(r):
@@ -82,7 +91,7 @@ def _logit(p):
     return np.log(p / (1 - p)).reshape(-1, 1)
 
 
-def predict(reading, path="model.joblib"):
+def predict(reading, path=None):
     b = _bundle(path)
     X = to_ai4i(reading)
     raw = b["model"].predict_proba(X)[:, 1]

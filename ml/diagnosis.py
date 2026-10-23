@@ -16,20 +16,24 @@ Safety and reliability:
   - max 6 model turns, 40 s read timeout, no automatic retries
   - citations must be manual sections that search_manual returned in this run; one correction
     attempt, then fall back
-  - disk cache keyed by unit + alert + severity, so a rehearsed demo costs no extra calls
+  - disk cache keyed by unit, alert, severity, model, the actual prediction numbers, the
+    history window and the manual/parts version, so a changed input cannot serve a stale run
   - any failure -> deterministic fallback built from the alert recommendation, marked "fallback"
-  - DIAG_MODE=offline forces the fallback, for demos with no network
+  - DEFAULT is offline: live inference requires explicit opt-in (DIAG_MODE=live). Any other
+    value, including unset, forces the deterministic fallback with no network.
 """
+import hashlib
 import json
 import os
 import threading
 import time
+from pathlib import Path
 
 MODEL_ID = os.getenv("BEDROCK_MODEL_ID", "us.openai.gpt-5.6-luna")
 REGION = os.getenv("AWS_REGION", "us-east-1")
 MIN_GAP_S = 2.0
 MAX_STEPS = 6
-CACHE_PATH = "diagnosis_cache.json"
+CACHE_PATH = str(Path(__file__).resolve().parent / "diagnosis_cache.json")
 
 # ---------------- simulated reference data (original text, NOT a real manufacturer's manual) -------
 MANUAL = [
@@ -65,6 +69,10 @@ MANUAL = [
              "the next round. Expedite parts if lead time exceeds the estimated remaining life."},
 ]
 MANUAL_IDS = {s["id"] for s in MANUAL}
+# Version of the simulated manual/parts reference data. Folded into the cache key so a
+# changed manual or catalog cannot silently serve a stale diagnosis.
+MANUAL_VERSION = hashlib.sha256(
+    json.dumps([MANUAL, "PARTS_V1"], sort_keys=True).encode()).hexdigest()[:12]
 
 PARTS_STOCK = {  # SIMULATED inventory. Align with the team's parts.json.
     "BRG-6205": {"name": "Fan motor bearing assembly", "in_stock": 0, "lead_time_days": 3,
@@ -164,12 +172,14 @@ SYSTEM = (
 _lock, _last_start = threading.Lock(), [0.0]
 
 
-def _throttle():
-    with _lock:
-        wait = MIN_GAP_S - (time.time() - _last_start[0])
-        if wait > 0:
-            time.sleep(wait)
-        _last_start[0] = time.time()
+def _pace():
+    """Enforce >= MIN_GAP_S between request starts. The caller already holds _lock
+    for the entire diagnosis, so one request is in flight at a time and retries/turns
+    inside a single run cannot interleave with another run's requests."""
+    wait = MIN_GAP_S - (time.time() - _last_start[0])
+    if wait > 0:
+        time.sleep(wait)
+    _last_start[0] = time.time()
 
 
 def _make_client():
@@ -190,9 +200,22 @@ class Diagnosis:
                 self.cache = {}
 
     # ----- public -----
+    @staticmethod
+    def _cache_key(out, history):
+        p = out.get("prediction", {})
+        # Fold in the actual prediction numbers, the recent history window and the
+        # manual/parts version so a changed input can never serve a stale diagnosis.
+        numbers = json.dumps({k: p.get(k) for k in (
+            "risk", "risk_kind", "model_risk", "heuristic_risk", "threshold",
+            "failure_mode", "rul_range_hours")}, sort_keys=True)
+        hist = json.dumps([h.get("risk") for h in (history or [])][-12:], sort_keys=True)
+        digest = hashlib.sha256((numbers + "|" + hist).encode()).hexdigest()[:16]
+        return (f"{out['unit_id']}|{out.get('alert_id')}|{out.get('severity')}|"
+                f"{MODEL_ID}|man{MANUAL_VERSION}|in{digest}")
+
     def run(self, out, history):
         u, ts = out["unit_id"], out["tick"]["ts"]
-        key = f"{u}|{out.get('alert_id')}|{out.get('severity')}|{MODEL_ID}"
+        key = self._cache_key(out, history)
         if self.use_cache and key in self.cache:     # replay the saved run, tool calls included
             hit = self.cache[key]
             ev = [dict(e, message=e["message"] + " [replayed]") for e in hit["events"]]
@@ -202,13 +225,18 @@ class Diagnosis:
                            f"({out.get('severity')}) with {MODEL_ID}", {})]
         ctx = {"out": out, "history": history, "seen_sections": set()}
         reason = None
-        if os.getenv("DIAG_MODE") == "offline":
-            final, reason = None, "offline mode"
+        # DEFAULT OFFLINE: only an explicit opt-in runs the live model. Anything else
+        # (unset, "offline", any other value) uses the deterministic fallback with no network.
+        if os.getenv("DIAG_MODE") != "live":
+            final, reason = None, "offline (set DIAG_MODE=live to opt in)"
         else:
-            try:
-                final, reason = self._loop(ctx, events, ts)
-            except Exception as e:
-                final, reason = None, f"{type(e).__name__}: {str(e)[:140]}"
+            # Hold the shared rate-gate lock for the WHOLE request loop: a diagnosis may
+            # make several Converse turns, and no other run may interleave its requests.
+            with _lock:
+                try:
+                    final, reason = self._loop(ctx, events, ts)
+                except Exception as e:
+                    final, reason = None, f"{type(e).__name__}: {str(e)[:140]}"
 
         if final is None:
             d = self._fallback(out, ctx, reason)
@@ -230,7 +258,7 @@ class Diagnosis:
     def _converse(self, messages):
         if self._client is None:
             self._client = _make_client()
-        _throttle()
+        _pace()
         return self._client.converse(          # NOTE: no temperature, the workshop model rejects it
             modelId=MODEL_ID, system=[{"text": SYSTEM}], messages=messages,
             toolConfig=TOOL_CONFIG, inferenceConfig={"maxTokens": 1500})
@@ -333,9 +361,9 @@ class Diagnosis:
 
 
 if __name__ == "__main__":
-    from alerts import AlertManager
-    from monitor import Monitor
-    from simulator import Simulator
+    from .alerts import AlertManager
+    from .monitor import Monitor
+    from .simulator import Simulator
     sim, mon, am, dg = Simulator(), Monitor(), AlertManager(outbox="outbox_demo.jsonl"), Diagnosis()
     history, done = [], False
     for k in range(48):

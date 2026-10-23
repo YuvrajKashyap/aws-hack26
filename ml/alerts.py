@@ -90,21 +90,22 @@ def recommend(pred, sev, reason):
 def build_email(unit, sev, pred, rec, alert_id, ts):
     mode = pred["failure_mode"].replace("_", " ")
     lo, hi = pred["rul_range_hours"]
-    subject = f"[{sev.upper()}] {unit} {mode}: act within about {lo:.0f} h"
+    subject = f"[SIMULATED {sev.upper()}] {unit} {mode}: flagged for technician review"
     lines = [
-        f"Alert {alert_id} for {unit} at {ts}",
+        f"Simulated review notification for alert {alert_id} on {unit} at {ts}.",
         f"Severity: {sev.upper()}   Risk: {pred['risk']:.0%}   "
-        f"Estimated remaining life: {lo:.0f}-{hi:.0f} h (heuristic)",
-        f"Likely cause: {mode}",
+        f"Estimated remaining life: {lo:.0f}-{hi:.0f} h "
+        "(wear-threshold projection, heuristic, not a validated RUL)",
+        f"Likely cause (evidence, not a confirmed component fault): {mode}",
         "",
-        f"Recommended action: {rec['summary']}",
-        f"Component: {rec['component']}" + (f" ({rec['part_id']})" if rec["part_id"] else ""),
+        f"Suggested next step for review: {rec['summary']}",
+        f"Component of interest: {rec['component']}" + (f" ({rec['part_id']})" if rec["part_id"] else ""),
         "",
         "Why:",
         *[f"  - {w}" for w in rec["why"]],
         "",
-        "Nothing has been ordered or scheduled. An operator must approve the plan first:",
-        "  {APPROVAL_URL}",
+        "Nothing has been ordered, scheduled, replaced, or dispatched. A human technician "
+        "reviews and decides any action.",
         "",
         "This is a prototype using simulated sensor data and a simulated parts catalog.",
     ]
@@ -112,33 +113,39 @@ def build_email(unit, sev, pred, rec, alert_id, ts):
 
 
 class Notifier:
-    def __init__(self, to=("ops@example.com",), outbox="outbox.jsonl"):
-        self.to, self.outbox = list(to), outbox
-        self.topic = os.getenv("NOTIFY_SNS_TOPIC_ARN")
-        self.sent = set()
+    """Routes high-severity notifications through the shared simulated-by-default
+    outbox (src/notifications.py). It CANNOT send for real just because an SNS topic
+    env var is set: a real publish requires explicit live opt-in (allow_live=True) and
+    an injected publisher. The intended recipient list is display-only; a real send
+    would publish to the publisher's configured topic, never to this list.
+    """
+    def __init__(self, to=("ops@example.com",), outbox="outbox.jsonl",
+                 *, allow_live=False, publisher=None):
+        self.to = list(to)
+        self.allow_live = bool(allow_live)
+        self.publisher = publisher
+        # Reuse the shared SQLite outbox. `outbox` kept for signature compatibility;
+        # a .jsonl path is mapped to a sibling .sqlite so we never silently send.
+        from pathlib import Path as _P
+        from src.notifications import NotificationOutbox
+        db = str(_P(str(outbox)).with_suffix(".sqlite"))
+        self._outbox = NotificationOutbox(db)
 
     def send(self, key, subject, body, ts):
-        if key in self.sent:
-            return None
-        self.sent.add(key)
-        mode, err = "simulated", None
-        if self.topic:
-            try:
-                import boto3
-                boto3.client("sns", region_name="us-east-1").publish(
-                    TopicArn=self.topic, Subject=subject[:100], Message=body)
-                mode = "sns"
-            except Exception as e:           # never let a notification failure break the pipeline
-                mode, err = "sns_failed_logged_only", str(e)[:120]
-        rec = {"ts": ts, "to": self.to, "subject": subject, "body": body, "mode": mode, "error": err}
-        with open(self.outbox, "a") as f:
-            f.write(json.dumps(rec) + "\n")
-        return rec
+        order_id = "|".join(str(part) for part in key) if isinstance(key, (tuple, list)) else str(key)
+        res = self._outbox.send(order_id=order_id, subject=subject, body=body,
+                                recipients_display=self.to,
+                                allow_live=self.allow_live, publisher=self.publisher)
+        # Compatible dict for AlertManager/events. 'to' is display-only recipients.
+        return {"ts": ts, "to": self.to, "subject": subject, "body": body,
+                "mode": res.mode, "status": res.status, "delivered": res.delivered,
+                "error": res.error_category, "notification_id": res.notification_id}
 
 
 class AlertManager:
-    def __init__(self, to=("ops@example.com",), outbox="outbox.jsonl"):
-        self.notifier = Notifier(to, outbox)
+    def __init__(self, to=("ops@example.com",), outbox="outbox.jsonl",
+                 *, allow_live=False, publisher=None):
+        self.notifier = Notifier(to, outbox, allow_live=allow_live, publisher=publisher)
         self.sev, self.episode = {}, {}
 
     def process(self, out):
@@ -185,8 +192,8 @@ class AlertManager:
 
 
 if __name__ == "__main__":
-    from monitor import Monitor
-    from simulator import Simulator
+    from .monitor import Monitor
+    from .simulator import Simulator
     sim, mon, am = Simulator(), Monitor(), AlertManager(outbox="outbox_demo.jsonl")
     open("outbox_demo.jsonl", "w").close()
     last = None

@@ -14,7 +14,9 @@ States (threshold comes from train.py, chosen on validation data):
     alert : risk >= threshold for ALERT_TICKS consecutive ticks
     back to normal only after risk stays under the watch level for CLEAR_TICKS ticks.
 """
-from predict import LUBE_BASE, VIB_BASE, predict
+from math import isfinite
+
+from .predict import LUBE_BASE, VIB_BASE, predict
 
 ALPHA = 0.35         # EWMA weight on the newest reading (lower = smoother, slower)
 WATCH_FRAC = 0.3
@@ -25,12 +27,30 @@ BAND = {"vibration": (VIB_BASE, VIB_BASE * 1.3), "lube_ppm": (LUBE_BASE, LUBE_BA
 
 
 class Monitor:
-    def __init__(self):
+    def __init__(self, predictor=predict):
+        # predictor is injectable so tests can score without loading model.joblib.
+        self.predictor = predictor
         self.ewma = {}      # unit_id -> {channel: value}
         self.state = {}     # unit_id -> "normal"|"watch"|"alert"
         self.above = {}     # unit_id -> consecutive ticks at/above threshold
         self.calm = {}      # unit_id -> consecutive ticks under watch level
-        self.alert_no = 0
+        self.episode = {}   # unit_id -> episode counter (increments when an alert opens)
+        self.alert_id = {}  # unit_id -> stable alert id for the current open episode
+        self._seq = 0       # monotonically increasing episode sequence across units
+
+    @staticmethod
+    def _validate(reading):
+        if "unit_id" not in reading or "ts" not in reading:
+            raise ValueError("reading missing unit_id or ts")
+        for c in SMOOTHED:
+            if c not in reading:
+                raise ValueError(f"reading missing channel {c!r}")
+            try:
+                value = float(reading[c])
+            except (TypeError, ValueError):
+                raise ValueError(f"channel {c!r} is not numeric")
+            if not isfinite(value):
+                raise ValueError(f"channel {c!r} is not finite")
 
     def _smooth(self, u, r):
         prev = self.ewma.get(u)
@@ -41,9 +61,12 @@ class Monitor:
         return dict(r, **cur)
 
     def process(self, reading):
+        # Reject nonfinite/missing readings BEFORE mutating any smoothing or alert
+        # state, so a bad tick cannot corrupt the EWMA or open a spurious alert.
+        self._validate(reading)
         u = reading["unit_id"]
         sm = self._smooth(u, reading)
-        pred = predict(sm)
+        pred = self.predictor(sm)
         thr = pred["threshold"]
         watch_lvl = WATCH_FRAC * thr
         old = self.state.get(u, "normal")
@@ -64,13 +87,19 @@ class Monitor:
 
         events = []
         if new != old:
-            if new == "alert":
-                self.alert_no += 1
+            if new == "alert" and old != "alert":
+                # Open a new episode and freeze a stable per-unit alert id. Interleaved
+                # alerts on other units never change this unit's identity.
+                self._seq += 1
+                self.episode[u] = self.episode.get(u, 0) + 1
+                self.alert_id[u] = f"ALT-{u}-{self.episode[u]:03d}"
+            if new == "normal":
+                self.alert_id.pop(u, None)
             events.append(self._event(reading, u, old, new, pred))
 
         return {
             "unit_id": u, "state": new, "prediction": pred, "smoothed": sm,
-            "events": events, "alert_id": f"ALT-{self.alert_no:03d}" if new == "alert" else None,
+            "events": events, "alert_id": self.alert_id.get(u) if new == "alert" else None,
             "tick": {
                 "ts": reading["ts"], "unit_id": u, "risk": pred["risk"],
                 "threshold": thr, "watch_level": round(watch_lvl, 3), "state": new,
@@ -96,7 +125,7 @@ class Monitor:
 
 
 if __name__ == "__main__":
-    from simulator import Simulator
+    from .simulator import Simulator
     sim, mon = Simulator(), Monitor()
     print(f"{'tick':>4} {'sev':>4} {'vib raw':>7} {'vib sm':>6} {'risk':>5}  state")
     for k in range(48):

@@ -69,7 +69,7 @@ class Simulator:
 
 
 if __name__ == "__main__":
-    from predict import predict
+    from .predict import predict
     sim = Simulator()
     print(f"{'tick':>4} {'sev':>4} {'vib':>5} {'lube':>5} {'risk':>5} {'rul_h':>6}  mode / driver")
     for k in range(42):

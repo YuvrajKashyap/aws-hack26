@@ -12,17 +12,12 @@ import argparse
 import json
 import sys
 
-import joblib
-import lightgbm as lgb
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import HistGradientBoostingClassifier
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import (average_precision_score, confusion_matrix,
-                             precision_recall_curve, precision_score,
-                             recall_score)
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
+
+# joblib, lightgbm and scikit-learn are imported lazily inside the functions that
+# train or serialize, so importing FEATURES/featurize (used by predict.py) never
+# requires those optional packages or touches the gated model.joblib.
 
 SEED = 42
 MODES = ["TWF", "HDF", "PWF", "OSF"]  # RNF is random by construction, skipped
@@ -77,6 +72,7 @@ def featurize(df):
 
 
 def lgbm(pos, neg):
+    import lightgbm as lgb
     return lgb.LGBMClassifier(
         n_estimators=300, learning_rate=0.05, num_leaves=15, min_child_samples=10,
         subsample=0.8, colsample_bytree=0.8, subsample_freq=1,
@@ -85,6 +81,7 @@ def lgbm(pos, neg):
 
 def hgb():
     """Main failure-risk model. Won the 5-fold CV bake-off (compare.py) on PR-AUC."""
+    from sklearn.ensemble import HistGradientBoostingClassifier
     return HistGradientBoostingClassifier(
         max_iter=300, learning_rate=0.05, max_leaf_nodes=15, min_samples_leaf=10,
         class_weight="balanced", random_state=SEED)
@@ -92,12 +89,19 @@ def hgb():
 
 def pick_threshold(y, p, min_precision=0.5):
     """Highest-recall threshold whose precision stays >= min_precision (chosen on val)."""
+    from sklearn.metrics import precision_recall_curve
     prec, rec, thr = precision_recall_curve(y, p)
     ok = [(rec[i], thr[i]) for i in range(len(thr)) if prec[i] >= min_precision]
     return float(max(ok)[1]) if ok else 0.5
 
 
 def main():
+    import joblib
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import (average_precision_score, confusion_matrix,
+                                 precision_score, recall_score)
+    from sklearn.model_selection import train_test_split
+    from sklearn.preprocessing import StandardScaler
     ap = argparse.ArgumentParser()
     ap.add_argument("--csv", default="data/ai4i2020.csv")
     ap.add_argument("--synthetic", action="store_true")
