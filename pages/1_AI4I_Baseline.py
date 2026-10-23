@@ -132,6 +132,8 @@ assessment.update(model_id=active_policy.model_id, predicted_failure=current_res
 components.html(render_explorer(zones, assessment), height=740 if view == '3D assembly' else 560, scrolling=True)
 if current_result is None:
     if stale:
+        st.session_state.pop('ai4i_result', None)
+        st.session_state.pop('ai4i_result_key', None)
         st.warning('Selection changed. Previous decision hidden; press Assess record for this observation.')
     st.info('Readings are ready to explore. Press Assess record in the sidebar to request a decision and explanation. No live Bedrock request or order is triggered by opening this view.')
     st.stop()

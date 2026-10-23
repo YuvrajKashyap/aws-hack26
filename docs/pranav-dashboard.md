@@ -1,5 +1,7 @@
 # Pranav dashboard integration
 
+Current update: the active dashboard retains Pranav's shell, card styling, grid and controls but replaces the static data-center view with the latest technician assessment in the same Streamlit session and the shared SQLite order/review ledger. It no longer displays fabricated fleet health, component risks, RUL, inventory, or prototype action counts. Navigate between pages in the same tab to retain the assessment; Refresh synchronized activity rereads ledger state. Cost scenarios remain separately labeled below. The original components are preserved in source for reference.
+
 Operations now embeds Pranav's actual React UI from PR6 commit `390146077780bf1edfda70849a7b468a67bdcf2a`, retaining its layout, filters, rack map, component detail, charts, and remediation screens. Source: `frontend/pranav-dashboard/src`.
 
 MemoryRouter replaces BrowserRouter for navigation inside the Streamlit iframe. The workshop-specific Vite host configuration is unnecessary. The build bundles the application into `assets/pranav-dashboard.html`; the original Google Fonts links remain with system-font fallbacks.
