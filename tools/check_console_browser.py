@@ -1,5 +1,6 @@
 """Local offline acceptance check. Requires playwright + Chromium (development only)."""
 from pathlib import Path
+import os
 from playwright.sync_api import sync_playwright
 
 Path('artifacts').mkdir(exist_ok=True)
@@ -8,7 +9,7 @@ with sync_playwright() as p:
     page = browser.new_page(viewport={'width': 1440, 'height': 1100})
     errors = []
     page.on('pageerror', lambda err: errors.append(str(err)))
-    page.goto('http://127.0.0.1:8502/AI4I_Baseline')
+    page.goto(os.getenv('CONSOLE_URL', 'http://127.0.0.1:8502') + '/AI4I_Baseline')
     page.get_by_role('button', name='Assess record', exact=True).wait_for(timeout=120000)
     page.get_by_role('button', name='Assess record', exact=True).click()
     frame = page.frame_locator('iframe').first

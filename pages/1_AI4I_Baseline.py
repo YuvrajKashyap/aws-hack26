@@ -194,7 +194,7 @@ if result.order:
             'Draft work scope', 'Review a maintenance window',
             'Evaluate specialist / contractor support', 'Review a parts request after diagnosis'])
         st.caption('Proposals only. No technician is dispatched, inventory is not verified, no window is reserved, and no part or contractor is ordered. Component diagnosis and approval come first.')
-        note = st.text_area('Inspection note (simulation)', max_chars=2000)
+        note = st.text_area('Inspection note (simulation)', max_chars=1500)
         if st.form_submit_button('Save simulated review'):
             try:
                 if not note.strip():
