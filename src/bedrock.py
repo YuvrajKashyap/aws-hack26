@@ -70,9 +70,14 @@ class BedrockExplainer:
                         messages=[{'role': 'user', 'content': [{'text': key}]}],
                         inferenceConfig={'maxTokens': 512})
                     content = response['output']['message']['content']
-                    if len(content) != 1 or set(content[0]) != {'text'}:
+                    # Reasoning blocks are opaque provider metadata, not evidence or instructions.
+                    # Discard them; only one final text block can reach schema validation.
+                    if any(set(block) not in ({'text'}, {'reasoningContent'}) for block in content):
                         raise ValueError('Unexpected content type')
-                    value = content[0]['text']
+                    final_text = [block['text'] for block in content if set(block) == {'text'}]
+                    if len(final_text) != 1:
+                        raise ValueError('Expected one final text block')
+                    value = final_text[0]
                     if not isinstance(value, str) or len(value) > 8192:
                         raise ValueError('Unexpected response size')
                     self.cache[key] = value
