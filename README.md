@@ -2,6 +2,8 @@
 
 Manufacturing Track 2: predictive maintenance from sensor evidence to simulated maintenance actions.
 
+**Presenting with the team:** [download the presentation guide PDF](output/pdf/manufacturing-team-presentation-guide.pdf) or read the [editable guide and five-minute script](docs/team-presentation-guide.md).
+
 Start with the [numbered code and user walkthrough](docs/00-code-walkthrough.md) to read both workflows in execution order.
 
 **Demo entry point:** open **AI4I Baseline** in the Streamlit sidebar for the [3D machining-cell console](docs/3d-console.md). It uses original Blender geometry, local rendering, and the existing validated assessment pipeline.
