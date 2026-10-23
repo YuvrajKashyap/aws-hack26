@@ -9,3 +9,6 @@ data/
 *.log
 .coverage
 htmlcov/
+*.pyc
+outbox*.jsonl
+cache_test_*.json

@@ -28,6 +28,7 @@ try:
     from src.ai4i import FEATURES, TARGET, fit_baseline, run_record
     from src.policy import POLICIES, build_policy, compare_policies, explorer_zones
     from src.explorer import render_machine_explorer
+    from src.notifications import NotificationOutbox, build_review_message
 except ImportError:
     st.warning('Install the optional dataset dependencies: python -m pip install -r requirements-ml.txt')
     st.stop()
@@ -59,6 +60,11 @@ def policy_comparison(path, digest):
 def policy_for(path, digest, name):
     # One fitted policy per name, cached per dataset so identities stay stable.
     return build_policy(name, path, load_baseline(path, digest))
+
+
+@st.cache_resource
+def notification_outbox(path):
+    return NotificationOutbox(path)
 
 
 csv_path = str(csv.resolve())
@@ -158,6 +164,33 @@ components.html(explorer_html, height=560, scrolling=False)
 
 if result.order:
     st.warning('SIMULATED technician-review order created. No part or maintenance slot reserved.')
+
+    # Simulated review notification. Preview is always shown; recording it routes
+    # through the shared outbox in simulated mode (no publisher, no live opt-in), so
+    # nothing is ever sent and a page rerun cannot trigger a real send. The outbox
+    # is idempotent on the order id + content, so repeated presses do not duplicate.
+    order_id = result.order.order_id
+    subject, body = build_review_message({
+        'order_id': order_id, 'record_id': result.record_id, 'model_id': result.model_id,
+        'policy': f'{_FRIENDLY[policy_name]} ({_TECHNICAL[policy_name]})',
+        'decision': verdict, 'score': result.score, 'threshold': result.threshold,
+        'evidence': result.statements})
+    st.subheader('Simulated review notification')
+    st.caption('Default simulated: the message below is not sent anywhere. A real send would require '
+               'a separately authorized SNS topic and explicit live opt-in, published to that topic '
+               '(never to an arbitrary recipient list).')
+    with st.expander('Preview notification message'):
+        st.text(subject)
+        st.text(body)
+    outbox = notification_outbox(os.getenv('NOTIFY_OUTBOX_PATH', 'data/ai4i-notifications.sqlite'))
+    existing = outbox.get(NotificationOutbox.notification_id(order_id, subject, body, ['ops (simulated)']))
+    if st.button('Record simulated review notification'):
+        existing = outbox.send(order_id=order_id, subject=subject, body=body,
+                               recipients_display=['ops (simulated)'])
+    if existing is not None:
+        st.success(f'Notification {existing.notification_id}: status {existing.status} '
+                   f'(mode {existing.mode}, delivered={existing.delivered}, attempts={existing.attempts}). '
+                   'Accepted or simulated status never implies an email was delivered.')
 else:
     st.write('No work order. A below-threshold result does not establish equipment safety.')
 

@@ -131,6 +131,7 @@ def test_dataset_dashboard_replays_without_aws(dataset, tmp_path, monkeypatch):
     monkeypatch.setenv('AI4I_CSV', str(dataset))
     monkeypatch.setenv('DEMO_MODE', 'offline')
     monkeypatch.setenv('DEMO_LEDGER_PATH', str(tmp_path / 'dashboard.sqlite'))
+    monkeypatch.setenv('NOTIFY_OUTBOX_PATH', str(tmp_path / 'notify.sqlite'))
     app = AppTest.from_file(str(page), default_timeout=30).run()
     assert not app.exception
     # Title names the console; explorer is not shown before an assessment.
@@ -151,12 +152,29 @@ def test_dataset_dashboard_hides_stale_result_when_record_changes(dataset, tmp_p
     monkeypatch.setenv('AI4I_CSV', str(dataset))
     monkeypatch.setenv('DEMO_MODE', 'offline')
     monkeypatch.setenv('DEMO_LEDGER_PATH', str(tmp_path / 'stale.sqlite'))
+    monkeypatch.setenv('NOTIFY_OUTBOX_PATH', str(tmp_path / 'notify.sqlite'))
     app = AppTest.from_file('pages/1_AI4I_Baseline.py', default_timeout=30).run()
     app.button[0].click().run()
     assert len(app.get('iframe')) == 1
     # Changing the record selector must retract the previous result immediately.
     record_select = app.selectbox[1]
     record_select.select(record_select.options[1]).run()
+    assert not app.exception
+    assert len(app.get('iframe')) == 0
+    assert any('Selection changed' in w.value for w in app.warning)
+
+
+def test_dataset_dashboard_hides_stale_result_when_policy_changes(dataset, tmp_path, monkeypatch):
+    from streamlit.testing.v1 import AppTest
+    monkeypatch.setenv('AI4I_CSV', str(dataset))
+    monkeypatch.setenv('DEMO_MODE', 'offline')
+    monkeypatch.setenv('DEMO_LEDGER_PATH', str(tmp_path / 'stalep.sqlite'))
+    monkeypatch.setenv('NOTIFY_OUTBOX_PATH', str(tmp_path / 'notify.sqlite'))
+    app = AppTest.from_file('pages/1_AI4I_Baseline.py', default_timeout=30).run()
+    app.button[0].click().run()
+    assert len(app.get('iframe')) == 1
+    # Switching the operating policy must retract the previous result too.
+    app.selectbox[0].select('gradient_boosting').run()
     assert not app.exception
     assert len(app.get('iframe')) == 0
     assert any('Selection changed' in w.value for w in app.warning)
