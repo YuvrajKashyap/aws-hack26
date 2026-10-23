@@ -132,9 +132,13 @@ class Notifier:
         self._outbox = NotificationOutbox(db)
 
     def send(self, key, subject, body, ts):
-        order_id = "|".join(str(part) for part in key) if isinstance(key, (tuple, list)) else str(key)
+        # The key (unit, episode, severity) is a stable semantic dedupe key, independent
+        # of the changing subject/body/timestamp. Repeated high ticks in one episode map
+        # to one notification and, in live mode, one publish.
+        dedupe_key = "|".join(str(part) for part in key) if isinstance(key, (tuple, list)) else str(key)
+        order_id = dedupe_key
         res = self._outbox.send(order_id=order_id, subject=subject, body=body,
-                                recipients_display=self.to,
+                                recipients_display=self.to, dedupe_key=dedupe_key,
                                 allow_live=self.allow_live, publisher=self.publisher)
         # Compatible dict for AlertManager/events. 'to' is display-only recipients.
         return {"ts": ts, "to": self.to, "subject": subject, "body": body,
@@ -181,12 +185,16 @@ class AlertManager:
             subject, body = build_email(u, sev, pred, rec, out.get("alert_id") or "ALT-?", ts)
             sent = self.notifier.send((u, self.episode[u], "high"), subject, body, ts)
             if sent:
-                how = ("simulated, no real email sent" if sent["mode"] == "simulated"
-                       else sent["mode"])
+                # Report the real status: accepted (SNS accepted the publish — not
+                # delivered), simulated (nothing sent), or failed. Never claim "emailed".
                 out["events"].append({
                     "ts": ts, "agent": "notifier", "status": "alert",
-                    "message": f"High-severity alert emailed to {', '.join(sent['to'])} ({how})",
-                    "data": {"unit_id": u, "subject": sent["subject"], "mode": sent["mode"]}})
+                    "message": (f"{u}: high-severity review notification status "
+                                f"'{sent['status']}' (mode {sent['mode']}, delivered="
+                                f"{sent['delivered']}); recipients are display-only."),
+                    "data": {"unit_id": u, "subject": sent["subject"], "mode": sent["mode"],
+                             "status": sent["status"], "delivered": sent["delivered"],
+                             "notification_id": sent["notification_id"]}})
                 out["email"] = sent
         return out
 
@@ -194,8 +202,8 @@ class AlertManager:
 if __name__ == "__main__":
     from .monitor import Monitor
     from .simulator import Simulator
-    sim, mon, am = Simulator(), Monitor(), AlertManager(outbox="outbox_demo.jsonl")
-    open("outbox_demo.jsonl", "w").close()
+    am = AlertManager(outbox="outbox_demo.sqlite")
+    sim, mon = Simulator(), Monitor()
     last = None
     for k in range(48):
         if k == 12:
@@ -210,6 +218,8 @@ if __name__ == "__main__":
             last = out
     print("\n--- recommendation at the end ---")
     print(json.dumps(last["recommendation"], indent=2))
-    mails = [json.loads(x) for x in open("outbox_demo.jsonl")]
-    print(f"\nemails written: {len(mails)}")
-    print("\n" + mails[0]["subject"] + "\n\n" + mails[0]["body"])
+    # The outbox is SQLite and simulated by default; read notifications back from it.
+    if last and last.get("email"):
+        print("\nlast notification:", json.dumps(
+            {k: last["email"][k] for k in ("status", "mode", "delivered", "notification_id")}, indent=2))
+        print("\n" + last["email"]["subject"] + "\n\n" + last["email"]["body"])

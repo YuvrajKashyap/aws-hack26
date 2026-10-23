@@ -8,11 +8,17 @@ Design goals (all enforced here, not left to callers):
 - SQLite-persisted idempotency and status. The notification id is derived from the
   order identity plus the message content, so the same review order never produces
   two notifications and a page rerun cannot re-send.
-- Failed sends are retryable; accepted/delivered states are terminal for that id.
-- Concurrency and restart dedupe: a row is claimed inside BEGIN IMMEDIATE before any
-  send, so two processes cannot both send. Because a crash can happen after a real
-  publish but before we persist the result, we DOCUMENT this as at-most-once-intended
-  with a recoverable `sending` state — we do not promise exactly-once.
+- Failed sends are retryable. For an AUTOMATIC call (pipeline, UI, rerun) a row that
+  is already `sending`, `simulated`, or `accepted` is terminal and is NOT reclaimed:
+  two concurrent callers can never both publish. Only `failed` auto-retries.
+- Crash recovery is explicit and manual. A crash can leave a `sending` row whose real
+  outcome is unknown (the publish may or may not have been accepted). We DO NOT silently
+  reclaim it; an operator must call send(..., recover=True) to deliberately retry, with
+  the documented risk of a duplicate publish. We do not promise exactly-once.
+- Semantic dedupe. A caller may supply a stable `dedupe_key` (e.g. unit|alert_id|severity)
+  that is independent of the changing message content. The first notification for a
+  dedupe_key persists its payload; later calls with the same key return that stored
+  record and never publish again, even if the subject/body/timestamp changed.
 - Accepted (SNS accepted the publish) is distinguished from delivered (the email
   actually reached a person). We can only ever observe "accepted"; delivery depends
   on topic subscriptions we do not control, so we never claim delivery.
@@ -32,9 +38,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
-# Terminal vs retryable statuses.
-TERMINAL = {"simulated", "accepted"}
-RETRYABLE = {"failed", "sending"}
+# For an automatic call these statuses are terminal and are never reclaimed:
+#   simulated / accepted = finished; sending = in flight (another caller owns it).
+# Only `failed` auto-retries. A `sending` row is reclaimable only by an explicit
+# recover=True call (manual crash recovery).
+TERMINAL_AUTO = {"simulated", "accepted", "sending"}
+AUTO_RETRYABLE = {"failed"}
 
 
 class Publisher(Protocol):
@@ -109,6 +118,7 @@ class NotificationOutbox:
             con.execute("""CREATE TABLE IF NOT EXISTS notifications (
                 notification_id TEXT PRIMARY KEY,
                 order_id TEXT NOT NULL,
+                dedupe_key TEXT,
                 status TEXT NOT NULL,
                 mode TEXT NOT NULL,
                 delivered INTEGER NOT NULL DEFAULT 0,
@@ -118,6 +128,12 @@ class NotificationOutbox:
                 recipients_display TEXT NOT NULL,
                 attempts INTEGER NOT NULL DEFAULT 0,
                 updated_ts REAL NOT NULL)""")
+            # Migrate an older-schema table (pre dedupe_key) in place before indexing.
+            cols = {r[1] for r in con.execute("PRAGMA table_info(notifications)").fetchall()}
+            if "dedupe_key" not in cols:
+                con.execute("ALTER TABLE notifications ADD COLUMN dedupe_key TEXT")
+            con.execute("CREATE UNIQUE INDEX IF NOT EXISTS ix_dedupe ON notifications(dedupe_key) "
+                        "WHERE dedupe_key IS NOT NULL")
 
     def _connect(self):
         return sqlite3.connect(self.path, timeout=10)
@@ -129,30 +145,53 @@ class NotificationOutbox:
                              sort_keys=True, separators=(",", ":"))
         return "NOTE-" + hashlib.sha256(payload.encode()).hexdigest()[:20]
 
+    _COLS = ("notification_id,order_id,dedupe_key,status,mode,delivered,provider_message_id,"
+             "error_category,subject,recipients_display,attempts")
+
     def get(self, notification_id: str) -> NotificationResult | None:
         with self._connect() as con:
-            row = con.execute("SELECT notification_id,status,mode,delivered,provider_message_id,"
-                              "error_category,subject,recipients_display,attempts "
-                              "FROM notifications WHERE notification_id=?",
+            row = con.execute(f"SELECT {self._COLS} FROM notifications WHERE notification_id=?",
                               (notification_id,)).fetchone()
+        return self._row_to_result(row) if row else None
+
+    def get_by_dedupe(self, dedupe_key: str) -> NotificationResult | None:
+        with self._connect() as con:
+            row = con.execute(f"SELECT {self._COLS} FROM notifications WHERE dedupe_key=?",
+                              (dedupe_key,)).fetchone()
         return self._row_to_result(row) if row else None
 
     @staticmethod
     def _row_to_result(row) -> NotificationResult:
+        # row columns match _COLS order.
         return NotificationResult(
-            notification_id=row[0], status=row[1], mode=row[2], delivered=bool(row[3]),
-            provider_message_id=row[4], error_category=row[5], subject=row[6],
-            recipients_display=json.loads(row[7]), attempts=row[8])
+            notification_id=row[0], status=row[3], mode=row[4], delivered=bool(row[5]),
+            provider_message_id=row[6], error_category=row[7], subject=row[8],
+            recipients_display=json.loads(row[9]), attempts=row[10])
 
     def send(self, *, order_id: str, subject: str, body: str,
-             recipients_display: list[str], allow_live: bool = False,
-             publisher: Publisher | None = None) -> NotificationResult:
+             recipients_display: list[str], dedupe_key: str | None = None,
+             allow_live: bool = False, publisher: Publisher | None = None,
+             recover: bool = False) -> NotificationResult:
         """Idempotently record and (optionally) send one notification.
 
-        Simulated unless allow_live is True AND a publisher is supplied. Re-calling
-        with the same content returns the stored result without re-sending, except
-        a previously failed send is retried.
+        Simulated unless allow_live is True AND a publisher is supplied.
+
+        Dedupe/idempotency rules for an AUTOMATIC call (recover=False):
+          - If `dedupe_key` is given and a row already exists for it, that stored
+            record is returned unchanged — no new row, no publish — regardless of
+            any change to subject/body/timestamp.
+          - A row whose status is simulated/accepted/sending is terminal and is not
+            reclaimed, so two concurrent callers cannot both publish. Only `failed`
+            auto-retries.
+        A `sending` row left by a crash is reclaimed only by an explicit recover=True
+        call, which deliberately accepts the risk of a duplicate publish.
         """
+        # Semantic dedupe takes precedence over content hashing: a changing message
+        # for the same key must not create a second notification or publish.
+        if dedupe_key is not None and not recover:
+            existing = self.get_by_dedupe(dedupe_key)
+            if existing is not None:
+                return existing
         nid = self.notification_id(order_id, subject, body, recipients_display)
         recips = json.dumps(list(recipients_display))
 
@@ -160,18 +199,33 @@ class NotificationOutbox:
         # page reruns cannot both proceed to a send.
         with self._connect() as con:
             con.execute("BEGIN IMMEDIATE")
-            row = con.execute("SELECT notification_id,status,mode,delivered,provider_message_id,"
-                              "error_category,subject,recipients_display,attempts "
-                              "FROM notifications WHERE notification_id=?", (nid,)).fetchone()
-            if row is not None and row[1] in TERMINAL:
-                return self._row_to_result(row)          # already done; never re-send
-            attempts = (row[8] if row else 0) + 1
+            row = con.execute(f"SELECT {self._COLS} FROM notifications WHERE notification_id=?",
+                              (nid,)).fetchone()
+            if row is not None:
+                status = row[3]
+                if not recover and status in TERMINAL_AUTO:
+                    # Finished (simulated/accepted) or in flight (sending): do not reclaim.
+                    return self._row_to_result(row)
+                if not recover and status not in AUTO_RETRYABLE:
+                    return self._row_to_result(row)
+                # Reclaimable: a failed row (auto), or any row under explicit recover.
+            attempts = (row[10] if row else 0) + 1
             if row is None:
-                con.execute("INSERT INTO notifications (notification_id,order_id,status,mode,"
-                            "delivered,provider_message_id,error_category,subject,recipients_display,"
-                            "attempts,updated_ts) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                            (nid, order_id, "sending", "pending", 0, None, None, subject,
-                             recips, attempts, time.time()))
+                try:
+                    con.execute("INSERT INTO notifications (notification_id,order_id,dedupe_key,status,"
+                                "mode,delivered,provider_message_id,error_category,subject,"
+                                "recipients_display,attempts,updated_ts) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                                (nid, order_id, dedupe_key, "sending", "pending", 0, None, None,
+                                 subject, recips, attempts, time.time()))
+                except sqlite3.IntegrityError:
+                    # A concurrent caller won the dedupe_key (or nid). Return the winner;
+                    # do not publish. This closes the two-new-callers race.
+                    con.execute("ROLLBACK")
+                    won = (self.get_by_dedupe(dedupe_key) if dedupe_key is not None
+                           else self.get(nid))
+                    if won is not None:
+                        return won
+                    raise
             else:
                 con.execute("UPDATE notifications SET status='sending', attempts=?, updated_ts=? "
                             "WHERE notification_id=?", (attempts, time.time(), nid))

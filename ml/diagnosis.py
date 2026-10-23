@@ -25,7 +25,6 @@ Safety and reliability:
 import hashlib
 import json
 import os
-import threading
 import time
 from pathlib import Path
 
@@ -33,7 +32,18 @@ MODEL_ID = os.getenv("BEDROCK_MODEL_ID", "us.openai.gpt-5.6-luna")
 REGION = os.getenv("AWS_REGION", "us-east-1")
 MIN_GAP_S = 2.0
 MAX_STEPS = 6
+QUEUE_TIMEOUT_S = 5.0
 CACHE_PATH = str(Path(__file__).resolve().parent / "diagnosis_cache.json")
+
+# Safe error categories only. Raw SDK/credential/provider text is never surfaced.
+_SAFE_ERRORS = {"EndpointConnectionError", "ConnectTimeoutError", "ReadTimeoutError",
+                "NoCredentialsError", "ClientError", "ThrottlingException", "TimeoutError",
+                "ValidationException", "ModelErrorException", "InferenceUnavailable"}
+
+
+def _redact_error(exc: Exception) -> str:
+    name = type(exc).__name__
+    return f"inference error ({name if name in _SAFE_ERRORS else 'InferenceError'})"
 
 # ---------------- simulated reference data (original text, NOT a real manufacturer's manual) -------
 MANUAL = [
@@ -169,17 +179,13 @@ SYSTEM = (
     "- When finished, call submit_diagnosis exactly once."
 )
 
-_lock, _last_start = threading.Lock(), [0.0]
 
 
-def _pace():
-    """Enforce >= MIN_GAP_S between request starts. The caller already holds _lock
-    for the entire diagnosis, so one request is in flight at a time and retries/turns
-    inside a single run cannot interleave with another run's requests."""
-    wait = MIN_GAP_S - (time.time() - _last_start[0])
-    if wait > 0:
-        time.sleep(wait)
-    _last_start[0] = time.time()
+def _shared_gate():
+    """The process-wide Bedrock request gate, shared with the evidence selector so all
+    application inference across agents is paced together (workshop: < 1 request/s)."""
+    from src.bedrock import SHARED_GATE
+    return SHARED_GATE
 
 
 def _make_client():
@@ -203,15 +209,23 @@ class Diagnosis:
     @staticmethod
     def _cache_key(out, history):
         p = out.get("prediction", {})
-        # Fold in the actual prediction numbers, the recent history window and the
-        # manual/parts version so a changed input can never serve a stale diagnosis.
-        numbers = json.dumps({k: p.get(k) for k in (
-            "risk", "risk_kind", "model_risk", "heuristic_risk", "threshold",
-            "failure_mode", "rul_range_hours")}, sort_keys=True)
-        hist = json.dumps([h.get("risk") for h in (history or [])][-12:], sort_keys=True)
-        digest = hashlib.sha256((numbers + "|" + hist).encode()).hexdigest()[:16]
+        # Hash the FULL tool-visible context a cached run would otherwise replay:
+        # the complete prediction (numbers + evidence), the recommendation, and the
+        # recent history samples the model can read via get_sensor_history (not just
+        # the risk scalar), plus the manual/parts reference version. Any change to
+        # what the agent could see produces a different key, so no stale replay.
+        hist = [{k: h.get(k) for k in ("ts", "risk", "smoothed")} for h in (history or [])][-12:]
+        context = json.dumps({
+            "prediction": p,
+            "recommendation": out.get("recommendation"),
+            "evidence": p.get("evidence"),
+            "history": hist,
+            "manual_version": MANUAL_VERSION,
+            "parts": PARTS_STOCK,
+        }, sort_keys=True, default=str)
+        digest = hashlib.sha256(context.encode()).hexdigest()[:20]
         return (f"{out['unit_id']}|{out.get('alert_id')}|{out.get('severity')}|"
-                f"{MODEL_ID}|man{MANUAL_VERSION}|in{digest}")
+                f"{MODEL_ID}|ctx{digest}")
 
     def run(self, out, history):
         u, ts = out["unit_id"], out["tick"]["ts"]
@@ -230,13 +244,21 @@ class Diagnosis:
         if os.getenv("DIAG_MODE") != "live":
             final, reason = None, "offline (set DIAG_MODE=live to opt in)"
         else:
-            # Hold the shared rate-gate lock for the WHOLE request loop: a diagnosis may
-            # make several Converse turns, and no other run may interleave its requests.
-            with _lock:
+            # Hold the shared Bedrock gate lock for the WHOLE request loop with a bounded
+            # acquire, so all application inference (this agent and the evidence selector)
+            # is serialized and paced together. If the gate is busy beyond the budget we
+            # fall back deterministically rather than piling on requests.
+            gate = _shared_gate()
+            if not gate.lock.acquire(timeout=QUEUE_TIMEOUT_S):
+                final, reason = None, "inference gate busy"
+            else:
                 try:
-                    final, reason = self._loop(ctx, events, ts)
+                    final, reason = self._loop(ctx, events, ts, gate)
                 except Exception as e:
-                    final, reason = None, f"{type(e).__name__}: {str(e)[:140]}"
+                    # Redact: a safe category only, never raw SDK/credential text.
+                    final, reason = None, _redact_error(e)
+                finally:
+                    gate.lock.release()
 
         if final is None:
             d = self._fallback(out, ctx, reason)
@@ -255,22 +277,22 @@ class Diagnosis:
     def _ev(ts, status, msg, data):
         return {"ts": ts, "agent": "diagnosis", "status": status, "message": msg, "data": data}
 
-    def _converse(self, messages):
+    def _converse(self, messages, gate):
         if self._client is None:
             self._client = _make_client()
-        _pace()
+        gate.pace(MIN_GAP_S)                   # >= MIN_GAP_S between request starts, via the shared gate
         return self._client.converse(          # NOTE: no temperature, the workshop model rejects it
             modelId=MODEL_ID, system=[{"text": SYSTEM}], messages=messages,
             toolConfig=TOOL_CONFIG, inferenceConfig={"maxTokens": 1500})
 
-    def _loop(self, ctx, events, ts):
+    def _loop(self, ctx, events, ts, gate):
         out = ctx["out"]
         messages = [{"role": "user", "content": [{"text":
             f"Alert {out.get('alert_id')} on {out['unit_id']}, severity {out.get('severity')}. "
             "Diagnose it and call submit_diagnosis."}]}]
         corrected = nudged = False
         for _ in range(MAX_STEPS):
-            resp = self._converse(messages)
+            resp = self._converse(messages, gate)
             msg = resp["output"]["message"]
             messages.append(msg)
             uses = [b["toolUse"] for b in msg["content"] if "toolUse" in b]
@@ -301,7 +323,7 @@ class Diagnosis:
                     try:
                         res, status = fn(ctx, args), "success"
                     except Exception as e:
-                        res, status = {"error": str(e)[:100]}, "error"
+                        res, status = {"error": _redact_error(e)}, "error"
                 short = json.dumps(args)[:70] if args else ""
                 events.append(self._ev(ts, "running", f"{out['unit_id']}: called {name}({short})",
                                        {"tool": name, "args": args}))
@@ -313,8 +335,6 @@ class Diagnosis:
     @staticmethod
     def _validate(a, ctx):
         p = []
-        if not str(a.get("root_cause", "")).strip():
-            p.append("root_cause is empty")
         if a.get("confidence") not in ("low", "medium", "high"):
             p.append("confidence must be low, medium or high")
         cites = a.get("citations") or []
@@ -325,6 +345,12 @@ class Diagnosis:
             p.append(f"citations {bad} were not returned by search_manual in this run")
         if a.get("part_id") and a["part_id"] not in PARTS_STOCK:
             p.append(f"unknown part_id {a['part_id']}")
+        # Any evidence the model lists is a SELECTION from the predictor's evidence,
+        # not free text. Reject fabricated evidence strings outright.
+        allowed = set(ctx["out"]["prediction"].get("evidence", []))
+        invented = [e for e in (a.get("evidence") or []) if e not in allowed]
+        if invented:
+            p.append("evidence must be selected from the predictor's evidence, not invented")
         return p
 
     @staticmethod
@@ -335,14 +361,40 @@ class Diagnosis:
                 "rul_method": p["rul_method"], "source": "predict.py (not written by the LLM)"}
 
     def _assemble(self, out, a, source):
+        """Render a DETERMINISTIC review diagnosis. The model contributes only a
+        validated confidence level, a selection of manual citations, and a selection
+        of the predictor's evidence. Root cause, numbers, summary and next steps come
+        from predict.py and the deterministic recommendation — never from model prose,
+        so a model cannot inject fabricated numbers, parts or actions.
+        """
         titles = {s["id"]: s["title"] for s in MANUAL}
-        part = a.get("part_id") or (out.get("recommendation") or {}).get("part_id")
+        rec, p = out.get("recommendation") or {}, out["prediction"]
+        mode = p["failure_mode"].replace("_", " ")
+        lo, hi = p["rul_range_hours"]
+        # Root cause is the deterministic failure-mode label, not model text.
+        root_cause = f"{mode} (model-classified label; evidence, not a confirmed component fault)"
+        # Confidence: a validated enum from the model is the only model-authored field here.
+        confidence = a.get("confidence") if a.get("confidence") in ("low", "medium", "high") else "low"
+        # Evidence: validated selection from the predictor, defaulting to all predictor evidence.
+        allowed = list(p.get("evidence", []))
+        selected = [e for e in (a.get("evidence") or []) if e in allowed] or allowed
+        # Summary and next steps are deterministic templates from validated numbers + rules.
+        summary = (f"Review {out['unit_id']}: {mode}. Risk {p['risk']:.0%} vs threshold "
+                   f"{p['threshold']:.0%}; estimated remaining life {lo:.0f}-{hi:.0f} h "
+                   "(wear-threshold projection, heuristic, not validated RUL). "
+                   "Numbers come from the predictor; a human approves any action.")
+        next_steps = [rec["summary"]] if rec.get("summary") else ["Technician review required."]
+        # Part only from the deterministic recommendation (or a model-selected, validated id).
+        part = (a.get("part_id") if a.get("part_id") in PARTS_STOCK
+                else (rec.get("part_id") if rec.get("part_id") in PARTS_STOCK else None))
         return {
             "unit_id": out["unit_id"], "alert_id": out.get("alert_id"), "source": source,
             "model": MODEL_ID if source == "llm" else None,
-            "root_cause": a["root_cause"], "confidence": a["confidence"], "summary": a["summary"],
-            "evidence": a.get("evidence", []), "next_steps": a.get("next_steps", []),
-            "citations": [{"id": c, "title": titles.get(c, "?")} for c in a["citations"]],
+            "model_role": "selected tools, confidence, citations and evidence subset only; "
+                          "did not author numbers, root cause, summary or actions",
+            "root_cause": root_cause, "confidence": confidence, "summary": summary,
+            "evidence": selected, "next_steps": next_steps,
+            "citations": [{"id": c, "title": titles.get(c, "?")} for c in a.get("citations", [])],
             "part": dict(PARTS_STOCK[part], part_id=part) if part in PARTS_STOCK else None,
             "numbers": self._numbers(out),
         }
@@ -350,11 +402,11 @@ class Diagnosis:
     def _fallback(self, out, ctx, reason):
         rec, p = out.get("recommendation") or {}, out["prediction"]
         hits = tool_search_manual(ctx, {"query": p["failure_mode"].replace("_", " ") + " severity"})
-        a = {"root_cause": p["failure_mode"].replace("_", " "), "confidence": "low",
-             "summary": f"{rec.get('summary', 'Inspect the unit')}. Automatic fallback: the language "
-                        f"model was not used ({reason}). Reasons come from the alert rules.",
-             "evidence": rec.get("why", p["evidence"]), "next_steps": [rec.get("summary", "Inspect")],
-             "citations": [s["id"] for s in hits["sections"][:2]], "part_id": rec.get("part_id")}
+        # Fallback uses the same deterministic renderer; only validated inputs are passed.
+        a = {"confidence": "low",
+             "evidence": list(p.get("evidence", [])),
+             "citations": [s["id"] for s in hits["sections"][:2]],
+             "part_id": rec.get("part_id")}
         d = self._assemble(out, a, "fallback")
         d["fallback_reason"] = reason
         return d
@@ -364,7 +416,7 @@ if __name__ == "__main__":
     from .alerts import AlertManager
     from .monitor import Monitor
     from .simulator import Simulator
-    sim, mon, am, dg = Simulator(), Monitor(), AlertManager(outbox="outbox_demo.jsonl"), Diagnosis()
+    sim, mon, am, dg = Simulator(), Monitor(), AlertManager(outbox="outbox_demo.sqlite"), Diagnosis()
     history, done = [], False
     for k in range(48):
         if k == 12:

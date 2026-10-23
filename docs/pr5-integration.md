@@ -48,26 +48,52 @@ it is staged for review. Offline is the default throughout; no AWS calls are mad
   default. A real send requires explicit live opt-in *and* an injected publisher; the
   module never constructs an AWS client on its own. Idempotency and status are persisted
   so a review order never produces two notifications and a page rerun cannot re-send.
-  Failed sends are retryable; `simulated`/`accepted` are terminal. "Accepted" (SNS
-  accepted the publish) is distinguished from delivery — we never claim an email reached a
-  person. Errors are redacted to a safe category. The intended recipient list is
-  display-only; a real send publishes to a configured SNS topic ARN, never to an arbitrary
-  to-list. Messages carry order/model/evidence identity, are review-only, and make no
-  deadline, replacement-certainty, or approval-link claim.
+  Concurrency safety is enforced, not assumed: for an automatic call a row that is
+  `simulated`, `accepted`, or in-flight `sending` is terminal and is **not** reclaimed, so
+  two concurrent callers can never both publish (covered by a deterministic
+  blocked-publisher test that asserts exactly one publish across two outbox instances).
+  Only `failed` auto-retries. A crash can leave a `sending` row whose real outcome is
+  unknown; it is reclaimed only by an explicit `recover=True` call — we document this
+  ambiguity and do not promise exactly-once. A stable semantic `dedupe_key` (e.g.
+  unit|alert_id|severity), independent of the changing subject/body/timestamp, persists the
+  first payload and dedupes later ticks to one notification. "Accepted" (SNS accepted the
+  publish) is distinguished from delivery — we never claim an email reached a person.
+  Errors are redacted to a safe category. The intended recipient list is display-only; a
+  real send publishes to a configured SNS topic ARN, never to an arbitrary to-list.
+  Messages carry order/model/evidence identity, are review-only, and make no deadline,
+  replacement-certainty, or approval-link claim.
+
+  **The SNS adapter (`SNSPublisher`) exists but its live path is unverified.** No real
+  publish has been exercised against an AWS account in this work; tests use an injected
+  fake client. Treat live SNS as untested until separately validated with an authorized
+  topic and subscription.
 - **Teammate notifier routed through shared safety.** `ml/alerts.py`'s `Notifier` now
-  delegates to the shared outbox and can no longer send for real just because an SNS topic
-  environment variable is set — live requires `allow_live=True` plus an injected publisher.
+  delegates to the shared outbox with the stable key as its semantic dedupe key, and can no
+  longer send for real just because an SNS topic environment variable is set — live
+  requires `allow_live=True` plus an injected publisher. Its event is reported as a
+  status (`accepted`/`simulated`/`failed`, with `delivered`), never a misleading "emailed
+  to" line, and the old crashing `.jsonl` demo reader was replaced with SQLite inspection.
   `build_email` was reworded to drop the `{APPROVAL_URL}` placeholder, the "act within N h"
   deadline subject, and "approve the plan"/replacement-certainty phrasing; it is now
   review-only.
 - **Diagnosis agent.** Defaults to offline: the live model runs only with explicit
-  `DIAG_MODE=live`; anything else falls back deterministically with no network. The disk
-  cache key now folds in the actual prediction numbers, the recent history window, the
-  model id, and a manual/parts version hash, so a changed input cannot serve a stale
-  diagnosis. The shared Bedrock rate-gate lock is held across the whole multi-turn request
-  loop (one diagnosis in flight at a time); calls remain bounded (max 6 turns). Existing
-  validation — citations must be sections returned in this run, numbers come from
-  `predict.py` — is retained.
+  `DIAG_MODE=live`; anything else falls back deterministically with no network. It uses the
+  process-wide `src.bedrock.SHARED_GATE`: the gate lock is acquired with a bounded timeout
+  and held across the whole multi-turn request loop (so this agent and the evidence selector
+  are serialized and paced together), releasing in a `finally`; if the gate is busy beyond
+  the budget it falls back. The disk cache key hashes the **full tool-visible context** —
+  the complete prediction and its evidence, the recommendation, the recent history samples
+  (including the smoothed channels the model can read), and a manual/parts version — so a
+  changed input cannot serve a stale diagnosis. Calls remain bounded (max 6 turns). Raw SDK
+  errors are redacted to a safe category.
+- **Diagnosis output is deterministic.** The rendered diagnosis does **not** surface model
+  free text. Root cause is the predictor's failure-mode label; the numbers, summary and
+  next steps are templated from `predict.py` values and the deterministic recommendation;
+  evidence is a validated subset of the predictor's evidence; citations must be manual
+  sections returned by `search_manual` in this run; the part comes from the recommendation
+  or a validated id. The model contributes only tool selection, a validated `confidence`
+  enum, and those validated selections — it cannot inject fabricated numbers, parts, prose
+  or actions (covered by a hostile-model test).
 
 ## Deferred
 
