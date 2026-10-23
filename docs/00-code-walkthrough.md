@@ -2,6 +2,8 @@
 
 This is a reading order, not a request to rename modules. Python imports and teammate integrations retain their existing paths. There are two separate workflows: dataset classification and fictional sensor replay. Neither is a production maintenance system.
 
+For the current presentation, use the [team presentation guide](team-presentation-guide.md), including the exact demo cases and updated review workflow.
+
 ## 1. Launch and configuration
 
 Run Streamlit with `app.py` from the repository root. Streamlit discovers `pages/1_AI4I_Baseline.py` as the dataset page. Environment settings select offline or Bedrock explanations and the SQLite ledger path. `.env.example` documents settings; it is not loaded automatically.
@@ -44,6 +46,8 @@ The page stores the result with its record/policy selection key and hides it whe
 
 ## 8. Separate fictional replay
 
+Current UI additions: `src/scene.py` and `frontend/viewer/viewer.js` render the original Blender machining-cell asset, with the SVG retained as a 2D alternative. `src/review.py` persists simulated review dispositions, notes, proposed follow-ups, and versioned review events. The form does not dispatch, purchase, schedule, or certify safety. `src/notifications.py` records simulated notification previews through the shared outbox.
+
 Read these files in execution order:
 
 1. `app.py`: select normal, degrading, or missing-sensor replay.
@@ -73,4 +77,4 @@ A real deployment needs asset registration and actual sensor ingestion; source/u
 
 ## 12. Verification reading order
 
-`tests/test_ai4i.py` covers dataset contracts and flow; `tests/test_policy.py` covers selection, identity and explorer behavior; `tests/test_benchmark.py` covers experiments; `tests/test_bedrock.py` covers provider failure and gating; `tests/test_flow.py` covers fictional orchestration and ledger safety; dashboard tests exercise the UI. The last workshop run passed 61 tests. This documentation change does not constitute a new test run.
+`tests/test_ai4i.py` covers dataset contracts and flow; `tests/test_policy.py` covers selection, identity and explorer behavior; `tests/test_benchmark.py` covers experiments; `tests/test_bedrock.py` covers provider failure and gating; `tests/test_flow.py` covers fictional orchestration and ledger safety; dashboard tests exercise the UI. The PR9 local offline run passed 93 tests, including review persistence and simulator modes. The browser check in `tools/check_console_browser.py` covered the 3D viewer and a saved review. This documentation update does not claim a new workshop or live AWS test.
