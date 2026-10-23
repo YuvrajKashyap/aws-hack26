@@ -4,6 +4,8 @@ Manufacturing Track 2: predictive maintenance from sensor evidence to simulated 
 
 Start with the [numbered code and user walkthrough](docs/00-code-walkthrough.md) to read both workflows in execution order.
 
+**Demo entry point:** open **AI4I Baseline** in the Streamlit sidebar for the [3D machining-cell console](docs/3d-console.md). It uses original Blender geometry, local rendering, and the existing validated assessment pipeline.
+
 - [Project skill](.agents/skills/manufacturing-track-2/SKILL.md)
 - [Architecture and build plan](docs/track-2-plan.md)
 - [Codex starter prompt](docs/codex-starter.md)

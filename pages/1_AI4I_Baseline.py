@@ -18,7 +18,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src.orchestrator import configured_provider
 
 st.set_page_config(page_title='Machine maintenance console', layout='wide')
+from src.ui import console_style, stages
+console_style()
 st.title('Machine maintenance console')
+st.markdown('<p class="intro">A clearer view of what needs attention. Inspect a machining-cell observation, compare the evidence, and prepare a simulated technician review.</p>', unsafe_allow_html=True)
+stages()
 mode = os.getenv('DEMO_MODE', 'offline')
 # Short simulation / provenance line stays visible at all times.
 st.info(f'{mode.upper()} EXPLANATIONS · PUBLISHED SYNTHETIC AI4I DATA · SIMULATED REVIEW ORDERS · '
@@ -28,6 +32,7 @@ try:
     from src.ai4i import FEATURES, TARGET, fit_baseline, run_record
     from src.policy import POLICIES, build_policy, compare_policies, explorer_zones
     from src.explorer import render_machine_explorer
+    from src.scene import render_3d_explorer
     from src.notifications import NotificationOutbox, build_review_message
 except ImportError:
     st.warning('Install the optional dataset dependencies: python -m pip install -r requirements-ml.txt')
@@ -134,6 +139,7 @@ if result is None or stale:
                    f'record {uid} with “{_FRIENDLY[policy_name]}”.')
     else:
         st.info('Choose a policy and a record, then press **Assess record** to populate the machine explorer.')
+        st.markdown('<div class="empty-scene"><strong>Your next decision starts here.</strong><p>Drive / spindle · Process chamber · Tool head<br>Assess an observation to explore the original 3D machining cell and its recorded evidence.</p></div>', unsafe_allow_html=True)
     st.caption('Global machine-level classifier result. Zones below show observed readings as evidence; '
                'they are not a component-level diagnosis.')
     st.stop()
@@ -154,13 +160,15 @@ for flag in result.quality_flags:
     st.warning(flag)
 
 zones = explorer_zones(result.observation.model_dump(by_alias=True))
-explorer_html = render_machine_explorer(zones, {
+view = st.radio('Inspection view', ['3D assembly', '2D schematic'], horizontal=True)
+render_explorer = render_3d_explorer if view == '3D assembly' else render_machine_explorer
+explorer_html = render_explorer(zones, {
     'record_id': result.record_id, 'model_id': result.model_id,
     'policy': f'{_FRIENDLY[policy_name]} ({_TECHNICAL[policy_name]})',
     'score': result.score, 'threshold': result.threshold,
     'predicted_failure': result.predicted_failure,
     'explanation_mode': result.explanation_mode})
-components.html(explorer_html, height=560, scrolling=False)
+components.html(explorer_html, height=740 if view == '3D assembly' else 560, scrolling=True)
 
 if result.order:
     st.warning('SIMULATED technician-review order created. No part or maintenance slot reserved.')
@@ -170,6 +178,32 @@ if result.order:
     # nothing is ever sent and a page rerun cannot trigger a real send. The outbox
     # is idempotent on the order id + content, so repeated presses do not duplicate.
     order_id = result.order.order_id
+    from src.review import ReviewStore
+    reviews = ReviewStore(os.getenv('DEMO_LEDGER_PATH', 'data/ai4i-orders.sqlite'))
+    previous_review = reviews.get(order_id)
+    st.subheader('Technician review · simulated')
+    st.caption('Record a demo inspection outcome. Completion does not certify equipment safety, dispatch a technician, or alter the model result. Do not enter personal or sensitive information.')
+    if previous_review:
+        st.info(f"{previous_review['state']} · revision {previous_review['version']}")
+        st.write(previous_review['note'])
+    with st.form('review-' + order_id):
+        states = ['Acknowledged', 'Inspection pending', 'Review completed']
+        state = st.selectbox('Review disposition', states, index=states.index(previous_review['state']) if previous_review else 0)
+        followups = st.multiselect('Proposed follow-up for human review', [
+            'Request technician inspection', 'Check spare inventory after component confirmation',
+            'Draft work scope', 'Review a maintenance window',
+            'Evaluate specialist / contractor support', 'Review a parts request after diagnosis'])
+        st.caption('Proposals only. No technician is dispatched, inventory is not verified, no window is reserved, and no part or contractor is ordered. Component diagnosis and approval come first.')
+        note = st.text_area('Inspection note (simulation)', max_chars=2000)
+        if st.form_submit_button('Save simulated review'):
+            try:
+                if not note.strip():
+                    raise ValueError('Add an inspection note before saving.')
+                saved_note = note + ('\nProposed follow-up (not executed): ' + '; '.join(followups) if followups else '')
+                reviews.save(order_id, state, saved_note, previous_review['version'] if previous_review else 0)
+                st.success('Simulated review saved. No external action was performed.')
+            except (ValueError, OSError) as exc:
+                st.error(str(exc))
     subject, body = build_review_message({
         'order_id': order_id, 'record_id': result.record_id, 'model_id': result.model_id,
         'policy': f'{_FRIENDLY[policy_name]} ({_TECHNICAL[policy_name]})',
