@@ -4,6 +4,26 @@ from pathlib import Path
 import pytest
 
 
+@pytest.mark.parametrize('extra,accepted', [
+    ({'reasoningContent': {'redactedContent': b'opaque-test-block'}}, True),
+    ({'toolUse': {'name': 'unapproved'}}, False),
+    ({'text': 'unexpected extra answer'}, False),
+])
+def test_final_text_with_reasoning_or_unexpected_blocks(extra, accepted):
+    Adapter, Gate, Settings, Error = adapter_api()
+    answer = '{"evidence_ids":["prediction"]}'
+    class Client:
+        def converse(self, **kwargs):
+            return {'output': {'message': {'content': [extra, {'text': answer}]}}}
+    adapter = Adapter(Settings(model_id='test', max_attempts=1), client=Client(),
+                      gate=Gate(clock=lambda: 0, sleep=lambda _: None))
+    if accepted:
+        assert adapter.generate({}) == answer
+    else:
+        with pytest.raises(Error):
+            adapter.generate({})
+
+
 def adapter_api():
     assert Path('src/bedrock.py').exists(), 'Bedrock adapter is not implemented'
     from src.bedrock import BedrockExplainer, RequestGate, BedrockSettings, InferenceUnavailable

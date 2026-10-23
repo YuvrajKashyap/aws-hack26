@@ -7,6 +7,8 @@ Manufacturing Track 2: predictive maintenance from sensor evidence to simulated 
 - [Codex starter prompt](docs/codex-starter.md)
 - [Team branch workflow](CONTRIBUTING.md): personal name branches (`yuvraj`, `abhinav`, etc.), reviewed integration into `main`.
 - [Workshop usage and Kiro](docs/workshop-usage.md): verified live Bedrock setup, dashboard restart, and remaining integration.
+- [AI4I dataset baseline](docs/ai4i-baseline.md): measured failure classification, setup commands and honest limitations.
+- [AWS service decisions](docs/aws-decisions.md): selected services, deferred choices and actual deployment status.
 
 ## Run the offline demo
 

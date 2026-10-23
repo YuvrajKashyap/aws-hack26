@@ -2,6 +2,8 @@
 
 Design proposal. Implementation and deployment are outside this document. Workshop imports require the applicable approval.
 
+Implementation update (October 23, 2026): the original simulation and live Bedrock evidence selection work; an AI4I classifier, held-out evaluation and dataset review-order dashboard have now been added. See [AI4I baseline](ai4i-baseline.md) and [AWS decisions](aws-decisions.md) for current state. This proposal below is historical design context, not a claim that every step remains unimplemented or that AWS runtime deployment is complete.
+
 ## Product and brief fit
 
 Build a compact maintenance console for one simulated machine. The public [Track 2 brief](https://atx.rahman.dev/track-2.html) asks for multiple agent roles connecting sensor evidence to equipment risk, useful life, parts, and maintenance. The proposed scope makes each decision inspectable and identifies estimates the available evidence cannot support. Auto-ordering and scheduling are demonstrated entirely in a simulator.
