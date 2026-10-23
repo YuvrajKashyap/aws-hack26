@@ -1,0 +1,481 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>CoolGuard Ops Console</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,500..800&family=Source+Sans+3:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: ops console. Control bar, then floor plan + unit detail, then case panel beside the agent feed. */
+:root {
+  --bg: #eef2f4; --panel: #ffffff; --ink: #14212b; --muted: #5b6b77; --line: #d3dce2;
+  --accent: #0f6f8c; --accent-soft: #dcecf1; --heat: #d9622b;
+  --ok: #2f8a57; --ok-soft: #e1f2e7; --warn: #b7791f; --warn-soft: #fbefd9; --crit: #c2362f; --crit-soft: #fbe3e1;
+  --display: "Archivo", "Arial Narrow", system-ui, sans-serif;
+  --body: "Source Sans 3", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e171d; --panel: #15222b; --ink: #e3ecf1; --muted: #8fa2ae; --line: #263744;
+  --accent: #4fb3cf; --accent-soft: #173341; --heat: #f08a55;
+  --ok: #5cc48a; --ok-soft: #173326; --warn: #e3ac4f; --warn-soft: #3a2d14; --crit: #f0736b; --crit-soft: #3d1c1a; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0e171d; --panel: #15222b; --ink: #e3ecf1; --muted: #8fa2ae; --line: #263744;
+  --accent: #4fb3cf; --accent-soft: #173341; --heat: #f08a55;
+  --ok: #5cc48a; --ok-soft: #173326; --warn: #e3ac4f; --warn-soft: #3a2d14; --crit: #f0736b; --crit-soft: #3d1c1a; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--ink); font: 15px/1.45 var(--body); margin: 0 }
+.wrap { max-width: 1280px; margin: 0 auto; padding-block: 16px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 16px }
+h1, h2, h3 { font-family: var(--display); font-stretch: 85%; margin: 0; text-wrap: balance }
+h1 { font-size: 22px; font-weight: 800; letter-spacing: .01em }
+h2 { font-size: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted) }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; min-width: 0 }
+button, select, input { font: inherit; color: inherit }
+button { border: 1px solid var(--line); background: var(--panel); border-radius: 7px; padding: 7px 12px; cursor: pointer; font-weight: 600 }
+button:hover { border-color: var(--accent) }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--panel) }
+button.danger { color: var(--crit) }
+button:disabled { opacity: .45; cursor: not-allowed }
+select, input { border: 1px solid var(--line); background: var(--panel); border-radius: 7px; padding: 6px 8px }
+
+/* header */
+.top { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; justify-content: space-between }
+.brand { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap }
+.site { color: var(--muted); font-size: 13px }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center }
+.clock { font-size: 13px; color: var(--muted) }
+.banner { font-size: 13px; color: var(--muted); border-left: 3px solid var(--accent); padding: 4px 10px; background: var(--accent-soft); border-radius: 0 6px 6px 0 }
+
+/* grid */
+.row1 { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px }
+.row2 { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px }
+@media (max-width: 900px) { .row1, .row2 { grid-template-columns: minmax(0, 1fr) } }
+
+/* floor */
+.floor { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px }
+@media (max-width: 520px) { .floor { grid-template-columns: minmax(0, 1fr) } }
+.unit { border: 1px solid var(--line); border-radius: 9px; padding: 12px; cursor: pointer; display: grid; gap: 8px; text-align: left; background: var(--panel); font-weight: 400 }
+.unit.sel { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft) }
+.unit .head { display: flex; justify-content: space-between; align-items: center; gap: 8px }
+.unit .name { font-family: var(--display); font-weight: 800; font-size: 18px; font-stretch: 85% }
+.pill { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; border-radius: 99px; padding: 2px 8px; white-space: nowrap }
+.p-normal { background: var(--ok-soft); color: var(--ok) }
+.p-watch, .p-low { background: var(--accent-soft); color: var(--accent) }
+.p-medium { background: var(--warn-soft); color: var(--warn) }
+.p-high, .p-failed { background: var(--crit-soft); color: var(--crit) }
+.p-repair { background: var(--accent-soft); color: var(--accent) }
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; font-size: 12px; color: var(--muted) }
+.stats b { display: block; font-family: var(--mono); font-size: 15px; color: var(--ink); font-weight: 500 }
+.riskbar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden }
+.riskbar i { display: block; height: 100%; background: var(--ok); transition: width .4s, background .4s }
+.racks { display: flex; gap: 6px }
+.rack { flex: 1; border-radius: 5px; padding: 4px 6px; font-size: 11px; background: var(--bg); border: 1px solid var(--line); min-width: 0 }
+.rack .t { font-family: var(--mono); font-size: 12px }
+.rack.hot { background: var(--crit-soft); border-color: var(--crit) }
+.rack.moved { border-style: dashed; opacity: .7 }
+
+/* detail chart */
+.detail-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap }
+.chart { width: 100%; height: 190px; display: block; margin-top: 8px }
+.legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); flex-wrap: wrap }
+.legend span::before { content: ""; display: inline-block; width: 14px; height: 3px; margin-right: 6px; vertical-align: middle; background: var(--c) }
+.reading { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 12px; font-size: 12px; color: var(--muted) }
+.reading b { display: block; font-family: var(--mono); font-size: 16px; color: var(--ink); font-weight: 500 }
+.evidence { margin: 10px 0 0; padding-left: 18px; font-size: 13px }
+
+/* case */
+.tabs { display: flex; gap: 4px; flex-wrap: wrap; margin: 12px 0; border-bottom: 1px solid var(--line) }
+.tab { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; padding: 6px 10px; color: var(--muted) }
+.tab.on { color: var(--ink); border-bottom-color: var(--accent) }
+.empty { color: var(--muted); padding: 24px 4px; text-align: center }
+.casehead { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap }
+.steps { margin: 0; padding-left: 20px; display: grid; gap: 6px }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; align-items: center }
+.note { font-size: 12px; color: var(--muted) }
+table { border-collapse: collapse; width: 100%; font-size: 13px }
+th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top }
+th { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600 }
+td.num { font-family: var(--mono); text-align: right; white-space: nowrap }
+tr.best td { background: var(--ok-soft) }
+.tablewrap { overflow-x: auto }
+.mail { font-family: var(--mono); font-size: 12.5px; white-space: pre-wrap; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin: 0; overflow-x: auto }
+.inputs { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 10px; font-size: 13px }
+.inputs input { width: 110px }
+
+/* feed */
+.feed { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 2px; max-height: 520px; overflow-y: auto; font-size: 13px }
+.feed li { display: grid; grid-template-columns: 52px 92px minmax(0, 1fr); gap: 8px; padding: 5px 6px; border-radius: 5px; align-items: baseline }
+.feed li.alert { background: var(--crit-soft) }
+.feed li.warning { background: var(--warn-soft) }
+.feed .ts { font-family: var(--mono); font-size: 11.5px; color: var(--muted) }
+.feed .ag { font-family: var(--mono); font-size: 11.5px; color: var(--accent); font-weight: 500 }
+.feed .msg { min-width: 0; overflow-wrap: anywhere }
+.feed .guard { color: var(--warn); font-weight: 600 }
+@media (max-width: 520px) { .feed li { grid-template-columns: 44px minmax(0, 1fr) } .feed .ag { grid-column: 2 } .feed .msg { grid-column: 1 / -1 } }
+@media (prefers-reduced-motion: reduce) { .riskbar i { transition: none } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <h1>CoolGuard</h1>
+      <span class="site">Hall B cooling · 4 CRAC units · 12 racks</span>
+    </div>
+    <div class="controls">
+      <span class="clock mono" id="clock"></span>
+      <button id="play">Pause</button>
+      <select id="speed" aria-label="Speed"><option value="700">1x</option><option value="300" selected>2x</option><option value="120">5x</option></select>
+      <select id="injectUnit" aria-label="Unit to break"></select>
+      <button class="primary" id="inject">Run demo · inject fault</button>
+      <button id="reset">Reset</button>
+    </div>
+  </header>
+  <div class="banner">Demo mode: simulated sensors, parts and prices. Scripted agent-role demonstration; no live Bedrock inference. Scores, life ranges and costs are fictional heuristics, not validated predictions or actual savings. Separate from the AI4I assessment and shared ledger. One tick = 10 simulated minutes.</div>
+
+  <div class="row1">
+    <section class="panel" aria-labelledby="floorH">
+      <h2 id="floorH">Cooling floor</h2>
+      <div class="floor" id="floor"></div>
+    </section>
+    <section class="panel" aria-labelledby="detailH">
+      <div class="detail-head"><h2 id="detailH">Unit detail</h2><span class="mono note" id="detailName"></span></div>
+      <svg class="chart" id="chart" viewBox="0 0 600 190" preserveAspectRatio="none" role="img" aria-label="Vibration and risk over time"></svg>
+      <div class="legend"><span style="--c: var(--heat)">Vibration vs healthy (x)</span><span style="--c: var(--accent)">Heuristic risk score</span><span style="--c: var(--crit)">Alert threshold</span></div>
+      <div class="reading" id="reading"></div>
+      <ul class="evidence" id="evidence"></ul>
+    </section>
+  </div>
+
+  <div class="row2">
+    <section class="panel" aria-labelledby="caseH">
+      <div class="casehead"><h2 id="caseH">Maintenance case</h2><span id="caseStatus"></span></div>
+      <div class="tabs" role="tablist">
+        <button class="tab on" data-tab="plan" role="tab">Plan</button>
+        <button class="tab" data-tab="cost" role="tab">Cost</button>
+        <button class="tab" data-tab="email" role="tab">Email</button>
+      </div>
+      <div id="tabBody"></div>
+    </section>
+    <section class="panel" aria-labelledby="feedH">
+      <h2 id="feedH">Agent activity</h2>
+      <ul class="feed" id="feed"></ul>
+    </section>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ---------- constants mirrored from the Python code ----------
+  const UNITS = ["CRAC-1", "CRAC-2", "CRAC-3", "CRAC-4"];
+  const THR = 0.049, WATCH = 0.3 * THR, ALPHA = 0.35;
+  const VIB = 2.0, LUBE = 12, FAULT_TICKS = 24, TICK_MIN = 10;
+  const MAX_INLET = 32, SPARE_KW = 30;
+  const RACK_TPL = [["critical", 18, 24.0], ["standard", 14, 23.5], ["batch", 10, 23.0]];
+  const SHIFTS = [["S1", 6, "night crew"], ["S2", 14, "day crew"], ["S3", 26, "night crew"], ["S4", 38, "day crew"]];
+  const COST = { downtime: 10000, outage_h: 4, collateral: 3000, part: 1800, labor: 600, emergency: 1200, migration: 500 };
+
+  const $ = (id) => document.getElementById(id);
+  const fmt$ = (n) => "$" + Math.round(n).toLocaleString("en-US");
+  const pct = (x) => Math.round(x * 100) + "%";
+  let rng = mulberry(7);
+  function mulberry(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const gauss = (m, s) => { let u = 0, v = 0; while (!u) u = rng(); while (!v) v = rng(); return m + s * Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+  const ramp = (r, lo, hi, top) => Math.max(0, Math.min(1, (r - lo) / (hi - lo))) * top;
+
+  // ---------- state ----------
+  let S;
+  function fresh() {
+    rng = mulberry((Date.now() % 100000) | 0);
+    S = { t: 0, start: new Date(), running: true, sel: "CRAC-3", alertNo: 0, feed: [], case: null, tab: "plan",
+      units: Object.fromEntries(UNITS.map((u, i) => [u, {
+        id: u, fault: null, wear: 60, ew: null, state: "normal", above: 0, calm: 0, sev: null, alert: null,
+        hist: [], failed: false, repairing: 0, pred: null,
+        racks: RACK_TPL.map(([tier, kw, inlet], j) => ({ id: "R" + String(i * 3 + j + 1).padStart(2, "0"), tier, kw, inlet, base: inlet, moved: false }))
+      }])) };
+  }
+  const ts = () => { const d = new Date(S.start.getTime() + S.t * TICK_MIN * 60000); return d.toTimeString().slice(0, 5); };
+
+  // ---------- simulator + predict + monitor + alerts ----------
+  function severity(u) { return u.fault == null ? 0 : Math.min(1, (S.t - u.fault) / FAULT_TICKS); }
+  function reading(u) {
+    const s = severity(u);
+    u.wear += 0.5 + 1.5 * s;
+    return { vibration: gauss(VIB, 0.08) * (1 + 1.6 * s) + 0.5 * s * Math.abs(gauss(0, 1)),
+             lube: gauss(LUBE, 0.6) * (1 + 1.8 * s), temp: gauss(45, 0.4) + 8 * s,
+             torque: gauss(38, 1.2) + 16 * s, rpm: gauss(1450, 12) - 60 * s };
+  }
+  function predict(sm, wear) {
+    const vr = sm.vibration / VIB, lr = sm.lube / LUBE;
+    const heur = Math.max(ramp(vr, 1.3, 2.4, 0.9), ramp(lr, 1.5, 3.0, 0.7));
+    const model = 0.004 + Math.max(0, (sm.temp - 47) * 0.004);
+    const risk = Math.max(heur, model), shrink = 1 - 0.5 * heur;
+    const hi = Math.max(0, (240 - wear) / 3 * shrink), lo = Math.max(0, (200 - wear) / 3 * shrink);
+    const ev = [];
+    if (lr >= 1.5) ev.push(`lube wear-metal ${Math.round((lr - 1) * 100)}% above healthy baseline`);
+    if (vr >= 1.3) ev.push(`vibration ${Math.round((vr - 1) * 100)}% above healthy baseline`);
+    if (!ev.length) ev.push("all channels within healthy range");
+    return { risk, heur, lo, hi, ev, mode: heur >= 0.3 ? "bearing wear" : (risk >= THR ? "bearing wear" : "no fault") };
+  }
+  function classify(p, state) {
+    if (state === "normal") return [null, ""];
+    if (state === "watch") return ["low", "drift detected, still below the alert threshold"];
+    if (p.risk >= 0.7) return ["high", `risk ${pct(p.risk)} is at or above 70%`];
+    if (p.hi <= 24) return ["high", `estimated life ${Math.round(p.hi)} h is at or below 24 h`];
+    if (p.risk >= 0.4) return ["medium", `risk ${pct(p.risk)} is at or above 40%`];
+    if (p.hi <= 48) return ["medium", `estimated life ${Math.round(p.hi)} h is at or below 48 h`];
+    return ["low", "alert raised, not yet urgent"];
+  }
+  const ORDER = { low: 1, medium: 2, high: 3 };
+
+  function tick() {
+    S.t++;
+    for (const id of UNITS) {
+      const u = S.units[id];
+      if (u.failed) { heatRacks(u); u.hist.push({ v: 0, r: 1 }); continue; }
+      const r = reading(u);
+      u.ew = u.ew ? Object.fromEntries(Object.keys(r).map((k) => [k, ALPHA * r[k] + (1 - ALPHA) * u.ew[k]])) : r;
+      const p = predict(u.ew, u.wear); u.pred = p;
+      u.hist.push({ v: u.ew.vibration / VIB, r: p.risk }); if (u.hist.length > 72) u.hist.shift();
+      u.above = p.risk >= THR ? u.above + 1 : 0;
+      u.calm = p.risk < WATCH ? u.calm + 1 : 0;
+      const old = u.state; let nw = old;
+      if (u.above >= 2) nw = "alert";
+      else if (old === "alert") nw = u.calm >= 3 ? "normal" : "alert";
+      else nw = p.risk >= WATCH ? "watch" : "normal";
+      u.state = nw;
+      if (nw !== old) {
+        if (nw === "alert") { S.alertNo++; u.alert = "ALT-" + String(S.alertNo).padStart(3, "0"); }
+        const m = { "normal>watch": `drift detected, watching (${p.ev[0]})`, "watch>alert": `risk ${pct(p.risk)} over threshold ${pct(THR)}, alert raised`,
+          "normal>alert": `risk ${pct(p.risk)} over threshold, alert raised`, "alert>normal": "readings back to normal, alert cleared", "watch>normal": "drift gone, back to normal" }[old + ">" + nw];
+        log("monitor", nw === "alert" ? "alert" : nw === "watch" ? "warning" : "info", `${id}: ${m || old + " → " + nw}`);
+      }
+      let [sev, why] = classify(p, nw);
+      if (sev && u.sev && ORDER[sev] < ORDER[u.sev]) sev = u.sev;
+      if (sev && u.sev && ORDER[sev] > ORDER[u.sev]) log("monitor", sev === "high" ? "alert" : "warning", `${id}: severity raised to ${sev.toUpperCase()} (${why})`);
+      u.sev = sev;
+      if (!sev) u.alert = nw === "alert" ? u.alert : null;
+      if (S.case && S.case.unit === id) caseTick(u);
+      else if (!S.case && (sev === "medium" || sev === "high")) openCase(u);
+    }
+    render();
+  }
+  function heatRacks(u) {
+    const stay = u.racks.filter((r) => !r.moved), load = stay.reduce((a, r) => a + r.kw, 0);
+    const rate = Math.max(0, load - SPARE_KW) * 0.05 * TICK_MIN;
+    stay.forEach((r) => { r.inlet = Math.min(40, r.inlet + rate); });
+  }
+  function failUnit(u) {
+    u.failed = true; u.state = "failed";
+    log("monitor", "alert", `${u.id}: unit FAILED. Unplanned outage, racks ${u.racks.map((r) => r.id).join(", ")} heating`);
+    S.case.status = "failed";
+  }
+
+  // ---------- cost card (port of cost.py) ----------
+  function costCard(lo, hi, inStock) {
+    const pf = (t) => t == null || t >= hi ? 0.95 : t <= lo ? 0.05 : 0.05 + 0.9 * (t - lo) / Math.max(hi - lo, 1e-6);
+    const unplanned = COST.outage_h * COST.downtime + COST.collateral + COST.part + COST.emergency;
+    const planned = COST.part + COST.labor + COST.migration;
+    const fee = inStock ? 0 : 450, early = Math.max(6, inStock ? 0 : 24), win = Math.max(36, inStock ? 0 : 72);
+    const opt = (id, label, t, f) => { const p = pf(t); return { id, label, t, p, exp: p * unplanned + (1 - p) * planned + f }; };
+    const o = [{ id: "run", label: "Keep running until it fails", t: null, p: 0.95, exp: 0.95 * unplanned },
+      opt("now", inStock ? "Fix tonight" : "Fix when the part arrives (expedite)", early, fee),
+      opt("window", "Wait for the next planned window", win, 0)];
+    const best = o.reduce((a, b) => (b.exp < a.exp ? b : a));
+    return { o, best, saving: o[0].exp - best.exp };
+  }
+
+  // ---------- agent crew (scripted demonstration; fictional numbers) ----------
+  function openCase(u) {
+    const p = u.pred, lo = Math.round(p.lo), hi = Math.round(p.hi);
+    const move = u.racks[1];
+    const card = costCard(p.lo, p.hi, false);
+    const c = S.case = { unit: u.id, alert: u.alert, id: `CASE-${u.alert}-${u.id}`, status: "planning", lo, hi, risk: p.risk,
+      move: move.id, card, sev: "HIGH", ruleSev: u.sev.toUpperCase(), steps: [], email: null, verify: 0, approvedAt: null };
+    const crit = u.racks[0].id, batch = u.racks[2].id;
+    const others = UNITS.filter((x) => x !== u.id).map((x) => `${x} ${pct(S.units[x].pred ? S.units[x].pred.risk : 0)}`).join(", ");
+    const script = [
+      ["supervisor", "running", `opened ${c.id} (${c.ruleSev}), planning with us.openai.gpt-5.6-luna`],
+      ["triage", "running", "called get_prediction()"], ["triage", "running", "called get_sensor_history()"],
+      ["triage", "running", `called get_fleet_status(): ${others}`],
+      ["triage", "done", `severity HIGH: real fault on ${u.id} only; other units are healthy, vibration and lube rising together`],
+      ["diagnosis", "running", "called run_predict()"], ["diagnosis", "running", 'called get_sensor_history({"samples": 12})'],
+      ["diagnosis", "running", 'called search_manual({"query": "vibration alert bearing lubrication"})'],
+      ["diagnosis", "running", 'called check_parts_stock({"part_id": "BRG-6205"})'],
+      ["diagnosis", "done", "Progressive fan-motor bearing wear (confidence high, 3 manual refs: SIM-MAN-4.2, 4.3, 9.1)"],
+      ["impact", "running", "called get_rack_impact(): without migration racks hit 32 °C in 13 min"],
+      ["impact", "running", `called simulate_migration(["${move.id}"])`],
+      ["impact", "running", `called simulate_migration(["${batch}"])`],
+      ["impact", "done", `migrate ${move.id} (15 min); keeps critical rack ${crit} in place`],
+      ["procurement", "running", "called check_parts_stock(): BRG-6205 stock 0"],
+      ["procurement", "running", "called list_suppliers()"], ["procurement", "running", `called get_deadline(): ${lo}-${hi} h`],
+      ["procurement", "done", "draft PO: 1 x BRG-6205 from Sim Bearings Co, expedite, arrives in ~24 h, $2,250 (not placed)"],
+      ["scheduler", "running", "called get_cost_options()"], ["scheduler", "running", "called get_part_arrival(): 24 h"],
+      ["scheduler", "running", "called get_crew_shifts()"],
+      ["scheduler", "done", `${card.o[1].label}, night crew in 26 h, expected ${fmt$(card.o[1].exp)} (placeholder inputs)`],
+      ["comms", "running", "called get_case_summary()"],
+      ["comms", "done", `email drafted: Approval needed: ${u.id} bearing replacement plan`],
+      ["supervisor", "alert", "plan ready, waiting for human approval"],
+    ];
+    c.planText = [
+      `Treat ${u.alert} as a HIGH-severity, unit-specific fan-motor bearing wear fault. Estimated life ${lo}-${hi} h (heuristic).`,
+      `Migrate rack ${move.id} first. Without it, racks would hit 32 °C within 13 minutes of shutdown.`,
+      "Approve the draft purchase of 1 x BRG-6205 from Sim Bearings Co, expedited, about 24 h, $2,250.",
+      `Repair with the night crew (shift S3) in 26 h. Expected cost ${fmt$(card.o[1].exp)} vs ${fmt$(card.o[0].exp)} to run to failure.`,
+    ];
+    c.email = `Subject: Approval needed: ${u.id} bearing replacement plan\n\n${u.id} shows progressive fan-motor bearing wear. Vibration and lube wear-metal are rising together. Move workload ${move.id} first; without that, racks could reach 32 °C within minutes of shutdown.\n\nThe crew proposes expediting one BRG-6205 bearing (about 24 h) and repairing with the night crew in 26 h. Nothing has been ordered or scheduled.\n\n--- facts (computed, not written by the AI) ---\nUnit: ${u.id}   Alert: ${u.alert}   Severity: HIGH\nRisk: ${pct(p.risk)}   Fictional heuristic life range: ${lo}-${hi} h (heuristic)\nWorkloads to move first: ${move.id}\nParts: 1 x BRG-6205, Sim Bearings Co, expedite, ~24 h, $2,250 (not placed)\nPlan: ${card.o[1].label}, night crew in 26 h\n\nApprove or reject: CoolGuard dashboard, case ${c.id}\nPrototype: simulated data, parts, suppliers and prices.`;
+    S.sel = u.id; S.tab = "plan";
+    let i = 0;
+    const next = () => {
+      if (!S.case || S.case !== c) return;
+      const [a, st, m] = script[i++];
+      log(a, st, `${u.id}: ${m}`);
+      if (i < script.length) setTimeout(next, a === "supervisor" && i === 1 ? 500 : 260);
+      else { c.status = "pending"; log("notifier", "done", `${u.id}: approval email sent (simulated)`); render(); }
+      render();
+    };
+    next();
+  }
+  function caseTick(u) {
+    const c = S.case;
+    if (c.status === "rejected" && u.pred.risk > 0.8) {
+      c.hot = (c.hot || 0) + 1;
+      if (c.hot === 4) log("monitor", "alert", `${u.id}: bearing temperature spiking, failure imminent`);
+      if (c.hot >= 10) failUnit(u);
+    }
+    if (c.status === "verifying") {
+      c.verify++;
+      if (c.verify >= 4 && (c.verify - 4) % 3 === 0) {
+        log("verifier", "running", `${u.id}: called get_sensor_history()`);
+        log("verifier", "running", `${u.id}: called get_prediction()`);
+        if (u.state !== "normal") log("verifier", "warning", `${u.id}: wanted to close, guardrail kept it open (unit not back to normal yet)`, true);
+        else { log("verifier", "done", `${u.id}: verdict close: vibration back to baseline across recent samples`); c.status = "closed";
+          u.racks.forEach((r) => { r.moved = false; }); log("executor", "done", `${u.id}: workloads moved back`); }
+      }
+    }
+  }
+  function approve() {
+    const c = S.case, u = S.units[c.unit];
+    log("human", "done", `${u.id}: plan approved by operator`);
+    log("executor", "done", `${u.id}: PO placed (simulated): 1 x BRG-6205, expedite, $2,250`);
+    log("executor", "done", `${u.id}: work order booked (simulated): night crew, shift S3`);
+    u.racks.find((r) => r.id === c.move).moved = true;
+    log("executor", "done", `${u.id}: workload ${c.move} migrated (simulated)`);
+    u.fault = null; u.wear = 60;
+    log("executor", "done", `${u.id}: repair done (simulated, time skipped to the shift); verifying`);
+    c.status = "verifying"; render();
+  }
+  function reject() {
+    const c = S.case;
+    log("human", "warning", `${c.unit}: plan rejected by operator. Unit keeps running.`);
+    c.status = "rejected"; render();
+  }
+
+  // ---------- feed ----------
+  function log(agent, status, msg, guard) {
+    S.feed.unshift({ t: ts(), agent, status, msg, guard });
+    if (S.feed.length > 200) S.feed.pop();
+    renderFeed();
+  }
+
+  // ---------- render ----------
+  function render() {
+    $("clock").textContent = `T+${Math.floor(S.t * TICK_MIN / 60)}h ${(S.t * TICK_MIN) % 60}m · ${ts()}`;
+    $("floor").innerHTML = UNITS.map((id) => {
+      const u = S.units[id], p = u.pred || { risk: 0, hi: 60 };
+      const tag = u.failed ? "failed" : (S.case && S.case.unit === id && S.case.status === "verifying") ? "repair" : (u.sev || u.state);
+      const label = { normal: "Normal", watch: "Watch", low: "Low", medium: "Medium", high: "High", failed: "Failed", repair: "Verifying" }[tag];
+      const col = u.failed || p.risk >= 0.7 ? "var(--crit)" : p.risk >= 0.4 ? "var(--warn)" : p.risk >= THR ? "var(--accent)" : "var(--ok)";
+      return `<button class="unit ${S.sel === id ? "sel" : ""}" data-unit="${id}" aria-pressed="${S.sel === id}">
+        <div class="head"><span class="name">${id}</span><span class="pill p-${tag}">${label}</span></div>
+        <div class="riskbar" aria-hidden="true"><i style="width:${Math.max(2, p.risk * 100)}%;background:${col}"></i></div>
+        <div class="stats"><span>Risk<b>${u.failed ? "--" : pct(p.risk)}</b></span><span>Vibration<b>${u.ew && !u.failed ? u.ew.vibration.toFixed(2) : "--"}</b></span><span>Scenario life (h)<b>${u.failed ? "0" : p.risk >= THR ? Math.round(p.lo) + "-" + Math.round(p.hi) : "ok"}</b></span></div>
+        <div class="racks">${u.racks.map((r) => `<div class="rack ${r.inlet >= MAX_INLET ? "hot" : ""} ${r.moved ? "moved" : ""}" title="${r.tier}, ${r.kw} kW"><div>${r.id} · ${r.tier}</div><div class="t">${r.moved ? "moved" : r.inlet.toFixed(1) + " °C"}</div></div>`).join("")}</div>
+      </button>`;
+    }).join("");
+    renderDetail(); renderCase();
+  }
+  function renderDetail() {
+    const u = S.units[S.sel], h = u.hist, W = 600, H = 190, pad = 22;
+    $("detailName").textContent = u.id;
+    const x = (i) => pad + (i / 71) * (W - pad * 2 - 16);
+    const yv = (v) => H - pad - Math.max(0, Math.min(1, (v - 0.5) / 3)) * (H - pad * 2);
+    const yr = (r) => H - pad - r * (H - pad * 2);
+    const line = (f) => h.map((d, i) => `${x(i + 72 - h.length).toFixed(1)},${f(d).toFixed(1)}`).join(" ");
+    const grid = [0, 0.25, 0.5, 0.75, 1].map((g) => `<line x1="${pad}" x2="${W - pad - 16}" y1="${yr(g)}" y2="${yr(g)}" stroke="var(--line)" stroke-width="1"/><text x="${W - 2}" y="${yr(g) + 4}" text-anchor="end" font-size="10" fill="var(--muted)" font-family="IBM Plex Mono, monospace">${g * 100}%</text>`).join("");
+    $("chart").innerHTML = grid +
+      `<line x1="${pad}" x2="${W - pad - 16}" y1="${yr(THR)}" y2="${yr(THR)}" stroke="var(--crit)" stroke-dasharray="4 4" stroke-width="1.2"/>` +
+      (h.length > 1 ? `<polyline points="${line((d) => yv(d.v))}" fill="none" stroke="var(--heat)" stroke-width="2"/>
+       <polyline points="${line((d) => yr(d.r))}" fill="none" stroke="var(--accent)" stroke-width="2.4"/>` : "") +
+      `<text x="${pad}" y="14" font-size="10" fill="var(--muted)" font-family="IBM Plex Mono, monospace">last 12 h</text>`;
+    const e = u.ew, p = u.pred;
+    $("reading").innerHTML = e && !u.failed ? [["Vibration mm/s", e.vibration.toFixed(2)], ["Lube metal ppm", e.lube.toFixed(1)], ["Motor temp °C", e.temp.toFixed(1)], ["Wear (hours eq.)", u.wear.toFixed(0)]]
+      .map(([k, v]) => `<span>${k}<b>${v}</b></span>`).join("") : `<span>Unit offline<b>--</b></span>`;
+    $("evidence").innerHTML = p ? p.ev.map((x) => `<li>${x} (rule)</li>`).join("") : "";
+  }
+  let caseKey = "";
+  function renderCase(force) {
+    const c = S.case, body = $("tabBody");
+    const key = c ? [c.id, c.status, S.tab].join("|") : "none|" + S.tab;
+    if (key === caseKey && !force) return;
+    caseKey = key;
+    document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("on", t.dataset.tab === S.tab));
+    const st = !c ? "" : { planning: ["Agents planning", "watch"], pending: ["Waiting for approval", "medium"], verifying: ["Repaired, verifying", "repair"],
+      closed: ["Closed", "normal"], rejected: ["Rejected", "high"], failed: ["Unit failed", "failed"] }[c.status];
+    $("caseStatus").innerHTML = c ? `<span class="pill p-${st[1]}">${st[0]}</span>` : "";
+    if (!c) { body.innerHTML = `<div class="empty">No open case. Press <b>Inject bearing fault</b> to break a unit and watch the agents respond.</div>`; return; }
+    if (S.tab === "plan") {
+      body.innerHTML = c.status === "planning" ? `<div class="empty">The Supervisor agent is running the specialists. Follow along in the activity feed.</div>` :
+        `<p><b>${c.id}</b> · ${c.unit} · rule severity ${c.ruleSev}, raised to HIGH by the Triage agent</p>
+         <ol class="steps">${c.planText.map((s) => `<li>${s}</li>`).join("")}</ol>
+         <div class="actions">${c.status === "pending" ? `<button class="primary" id="approve">Approve plan</button><button class="danger" id="reject">Reject</button><span class="note">Nothing is ordered or scheduled until you approve.</span>` :
+          c.status === "rejected" ? `<span class="note">Rejected. The unit keeps degrading; watch the floor.</span>` :
+          c.status === "failed" ? `<span class="note">The unit failed without the repair. Compare with the cost tab.</span>` :
+          c.status === "closed" ? `<span class="note">Closed by the Verifier agent after readings returned to normal.</span>` :
+          `<span class="note">Repair done. The Verifier agent checks the readings every few ticks.</span>`}</div>`;
+    } else if (S.tab === "cost") {
+      const card = costCard(c.lo, c.hi, false);
+      body.innerHTML = `<div class="inputs"><label for="dt">Downtime cost $/h</label><input id="dt" type="number" min="0" step="500" value="${COST.downtime}">
+        <label for="oh">Outage hours</label><input id="oh" type="number" min="0" step="1" value="${COST.outage_h}"></div>
+        <div class="tablewrap"><table><thead><tr><th>Option</th><th>Fix in</th><th>Chance it fails first</th><th>Expected cost</th></tr></thead><tbody>
+        ${card.o.map((o) => `<tr class="${o === card.best ? "best" : ""}"><td>${o.label}${o === card.best ? " <b>· cheapest</b>" : ""}</td><td class="num">${o.t == null ? "never" : o.t + " h"}</td><td class="num">${pct(o.p)}</td><td class="num">${fmt$(o.exp)}</td></tr>`).join("")}
+        </tbody></table></div><p class="note">Saves ${fmt$(card.saving)} vs running to failure. Life estimate ${c.lo}-${c.hi} h. Placeholder prices: edit them to match your site.</p>`;
+      const upd = () => { COST.downtime = +$("dt").value || 0; COST.outage_h = +$("oh").value || 0; renderCase(true); };
+      $("dt").addEventListener("change", upd); $("oh").addEventListener("change", upd);
+    } else {
+      body.innerHTML = c.email && c.status !== "planning" ? `<pre class="mail">${c.email.replace(/</g, "&lt;")}</pre><p class="note">Scripted communication preview. Values are calculated from this fictional scenario; no model inference or email delivery occurs.</p>` :
+        `<div class="empty">The Comms agent writes this once the plan is ready.</div>`;
+    }
+    if ($("approve")) $("approve").onclick = approve;
+    if ($("reject")) $("reject").onclick = reject;
+  }
+  function renderFeed() {
+    $("feed").innerHTML = S.feed.map((f) => `<li class="${f.status === "alert" ? "alert" : f.status === "warning" ? "warning" : ""}"><span class="ts">${f.t}</span><span class="ag">${f.agent}</span><span class="msg ${f.guard ? "guard" : ""}">${f.msg}</span></li>`).join("") ||
+      `<li><span class="ts">--</span><span class="ag">monitor</span><span class="msg">All four units healthy. Readings every 10 simulated minutes.</span></li>`;
+  }
+
+  // ---------- controls ----------
+  let timer;
+  function loop() { clearInterval(timer); timer = setInterval(() => { if (S.running) tick(); }, +$("speed").value); }
+  $("injectUnit").innerHTML = UNITS.map((u) => `<option ${u === "CRAC-3" ? "selected" : ""}>${u}</option>`).join("");
+  $("inject").onclick = () => {
+    const u = S.units[$("injectUnit").value];
+    if (u.failed || u.fault != null) return;
+    if (S.case && !["closed", "rejected", "failed"].includes(S.case.status)) { log("system", "warning", "Finish the open case before breaking another unit."); return; }
+    if (S.case && ["closed", "rejected", "failed"].includes(S.case.status)) S.case = null;
+    u.fault = S.t; S.sel = u.id;
+    log("system", "info", `${u.id}: bearing fault injected (simulated). The system is not told which unit.`);
+    render();
+  };
+  $("play").onclick = () => { S.running = !S.running; $("play").textContent = S.running ? "Pause" : "Resume"; };
+  $("speed").onchange = loop;
+  $("reset").onclick = () => { fresh(); for (let i = 0; i < 18; i++) tick(); S.feed = []; renderFeed(); render(); };
+  $("floor").addEventListener("click", (e) => { const b = e.target.closest("[data-unit]"); if (b) { S.sel = b.dataset.unit; render(); } });
+  document.querySelector(".tabs").addEventListener("click", (e) => { const b = e.target.closest(".tab"); if (b) { S.tab = b.dataset.tab; renderCase(true); } });
+
+  fresh(); for (let i = 0; i < 18; i++) tick(); S.feed = []; renderFeed(); render(); loop();
+})();
+</script>
+
+</body></html>

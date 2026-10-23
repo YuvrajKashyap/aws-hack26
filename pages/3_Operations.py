@@ -29,7 +29,12 @@ if path.exists():
 payload=json.dumps({'result':result.model_dump(mode='json') if result else None,'orders':rows}).replace('<','\\u003c')
 html=(root/'assets/pranav-dashboard.html').read_text(encoding='utf-8')
 html=html.replace('<script>', '<script>window.__FIELDWORK__='+payload+';</script><script>',1)
-components.html(html,height=1150,scrolling=True)
-st.button('Refresh synchronized activity')
-with st.expander('Recorded ledger activity and editable business-impact scenarios'):
-    runpy.run_path(str(root/'src/business_page.py'))
+activity_tab, cooling_tab = st.tabs(['Shared operations dashboard', 'CoolGuard · interactive remediation demo'])
+with activity_tab:
+    components.html(html,height=1150,scrolling=True)
+    st.button('Refresh synchronized activity')
+    with st.expander('Recorded ledger activity and editable business-impact scenarios'):
+        runpy.run_path(str(root/'src/business_page.py'))
+with cooling_tab:
+    st.caption('Vishwaa’s standalone cooling simulation · Local scripted roles · Fictional scores, life ranges and costs · Actions stay inside this browser demo; not connected to the AI4I ledger or AWS.')
+    components.html((root/'assets/coolguard-console.html').read_text(encoding='utf-8'),height=1450,scrolling=True)
