@@ -1,0 +1,1017 @@
+{
+ "CRAC-2|ALT-001|2026-10-23T23:00:00Z|us.openai.gpt-5.6-luna": {
+  "case_id": "CASE-ALT-001-CRAC-2",
+  "unit_id": "CRAC-2",
+  "alert_id": "ALT-001",
+  "ts": "2026-10-23T23:00:00Z",
+  "severity": "medium",
+  "status": "pending_approval",
+  "results": {
+   "triage": {
+    "severity": "medium",
+    "rule_severity": "medium",
+    "llm_severity": "medium",
+    "is_unit_fault": true,
+    "rationale": "rule-based severity",
+    "headline": "severity MEDIUM: rule-based severity",
+    "source": "fallback"
+   },
+   "diagnosis": {
+    "unit_id": "CRAC-2",
+    "alert_id": "ALT-001",
+    "source": "fallback",
+    "model": null,
+    "root_cause": "overstrain fault",
+    "confidence": "low",
+    "summary": "Replace the component at the next planned window. Automatic fallback: the language model was not used (offline mode). Reasons come from the alert rules.",
+    "evidence": [
+     "lube wear-metal +52% vs healthy baseline (rule)",
+     "vibration +61% vs healthy baseline (rule)",
+     "estimated remaining life about 36-48 h (wear-threshold projection, heuristic, not a validated RUL)",
+     "part lead time 2 days (placeholder) is longer than the estimated life, so expedite shipping or use a spare",
+     "severity MEDIUM: estimated life 48 h is at or below 48 h"
+    ],
+    "next_steps": [
+     "Replace the component at the next planned window"
+    ],
+    "citations": [
+     {
+      "id": "SIM-MAN-7.2",
+      "title": "Overstrain: belt and impeller"
+     },
+     {
+      "id": "SIM-MAN-9.4",
+      "title": "Response times by severity"
+     }
+    ],
+    "part": {
+     "name": "Fan belt and impeller kit",
+     "in_stock": 2,
+     "lead_time_days": 2,
+     "expedite_days": 1,
+     "expedite_fee_usd": 120,
+     "part_id": "FAN-KIT-02"
+    },
+    "numbers": {
+     "risk": 0.255,
+     "risk_kind": "heuristic_drift_rule",
+     "severity": "medium",
+     "threshold": 0.049,
+     "rul_range_hours": [
+      36.2,
+      47.9
+     ],
+     "rul_method": "wear-threshold projection (heuristic, not validated RUL)",
+     "source": "predict.py (not written by the LLM)"
+    },
+    "fallback_reason": "offline mode",
+    "headline": "overstrain fault"
+   },
+   "impact": {
+    "migrate_racks": [
+     "R06",
+     "R05"
+    ],
+    "rationale": "move lowest-priority workloads first until safe",
+    "minutes_to_limit_without_migration": 13,
+    "after": {
+     "load_kw_staying": 18.0,
+     "neighbor_spare_kw": 30.0,
+     "uncovered_kw": 0.0,
+     "minutes_to_thermal_limit": null,
+     "safe_to_take_offline": true,
+     "migration_minutes": 30,
+     "max_inlet_c": 32.0
+    },
+    "headline": "migrate R06, R05 (30 min); without it racks hit 32 C in 13 min",
+    "source": "fallback"
+   },
+   "cost": {
+    "unit_id": "CRAC-2",
+    "alert_id": "ALT-001",
+    "severity": "medium",
+    "options": [
+     {
+      "id": "run_to_failure",
+      "label": "Keep running until it fails",
+      "fix_in_hours": null,
+      "p_fail_first": 0.95,
+      "if_it_fails_usd": 46000,
+      "if_it_holds_usd": 0,
+      "expedite_fee_usd": 0,
+      "expected_cost_usd": 43700,
+      "note": "Unplanned outage plus emergency call-out. Chance capped at 95% because the life range is a heuristic."
+     },
+     {
+      "id": "fix_now",
+      "label": "Fix tonight",
+      "fix_in_hours": 6,
+      "p_fail_first": 0.05,
+      "if_it_fails_usd": 46000,
+      "if_it_holds_usd": 2900,
+      "expedite_fee_usd": 0,
+      "expected_cost_usd": 5055,
+      "note": "Part in stock."
+     },
+     {
+      "id": "fix_next_window",
+      "label": "Wait for the next planned window",
+      "fix_in_hours": 36,
+      "p_fail_first": 0.05,
+      "if_it_fails_usd": 46000,
+      "if_it_holds_usd": 2900,
+      "expedite_fee_usd": 0,
+      "expected_cost_usd": 5055,
+      "note": "Standard part lead time and the next window (36 h)."
+     }
+    ],
+    "recommended": "fix_now",
+    "saving_vs_run_to_failure_usd": 38645,
+    "life_range_hours": [
+     36.2,
+     47.9
+    ],
+    "assumptions": {
+     "downtime_cost_per_hour": 10000,
+     "outage_hours": 4,
+     "collateral_damage_usd": 3000,
+     "part_cost_usd": 1800,
+     "planned_labor_usd": 600,
+     "emergency_labor_usd": 1200,
+     "migration_cost_usd": 500,
+     "tonight_hours": 6,
+     "next_window_hours": 36,
+     "source": "PLACEHOLDERS, replace with the customer's real numbers",
+     "p_fail_rule": "5% at 36 h rising to 95% at 48 h (heuristic life range)"
+    },
+    "disclaimer": "Illustrative estimate from placeholder inputs. Not a quote or a guarantee.",
+    "events": [
+     {
+      "ts": "2026-10-23T23:00:00Z",
+      "agent": "scheduler",
+      "status": "done",
+      "message": "CRAC-2: cheapest option is 'Fix tonight', expected $5,055 vs $43,700 to run to failure (placeholder inputs)",
+      "data": {
+       "recommended": "fix_now",
+       "saving_usd": 38645
+      }
+     }
+    ]
+   },
+   "scheduler": {
+    "option_id": "fix_now",
+    "option": "Fix tonight",
+    "shift": {
+     "shift_id": "S1",
+     "starts_in_hours": 6,
+     "crew": "night crew"
+    },
+    "expected_cost_usd": 5055,
+    "rationale": "cheapest expected-cost option, earliest shift after the part arrives",
+    "risk_note": null,
+    "headline": "Fix tonight, night crew in 6 h, expected $5,055 (placeholder inputs)",
+    "source": "fallback"
+   },
+   "comms": {
+    "subject": "[MEDIUM] CRAC-2: maintenance plan needs approval",
+    "body": "The maintenance crew prepared a plan for CRAC-2. Details below.\n\n--- facts (computed, not written by the AI) ---\nUnit: CRAC-2   Alert: ALT-001   Severity: MEDIUM\nRisk: 26%   Estimated remaining life: 36-48 h (heuristic)\nLikely cause: overstrain fault\nWorkloads to move first: R06, R05\nPlan: Fix tonight, night crew in 6 h, expected $5,055 (placeholder inputs)\n\nNothing has been ordered or scheduled. Approve or reject: open the maintenance dashboard and review case CASE-ALT-001-CRAC-2\nPrototype: simulated sensor data, parts, suppliers and prices.",
+    "headline": "email drafted: [MEDIUM] CRAC-2: maintenance plan needs approval",
+    "source": "fallback"
+   }
+  },
+  "events": [
+   {
+    "ts": "2026-10-23T23:00:00Z",
+    "agent": "supervisor",
+    "status": "running",
+    "message": "CRAC-2: opened CASE-ALT-001-CRAC-2 (MEDIUM), planning with us.openai.gpt-5.6-luna",
+    "data": {}
+   },
+   {
+    "ts": "2026-10-23T23:00:00Z",
+    "agent": "supervisor",
+    "status": "warning",
+    "message": "CRAC-2: fixed-order fallback (offline mode)",
+    "data": {}
+   },
+   {
+    "ts": "2026-10-23T23:00:00Z",
+    "agent": "triage",
+    "status": "warning",
+    "message": "CRAC-2: using fallback (offline mode)",
+    "data": {}
+   },
+   {
+    "ts": "2026-10-23T23:00:00Z",
+    "agent": "triage",
+    "status": "done",
+    "message": "CRAC-2: severity MEDIUM: rule-based severity",
+    "data": {
+     "severity": "medium",
+     "rule_severity": "medium",
+     "llm_severity": "medium",
+     "is_unit_fault": true,
+     "rationale": "rule-based severity",
+     "headline": "severity MEDIUM: rule-based severity",
+     "source": "fallback"
+    }
+   },
+   {
+    "ts": "2026-10-23T23:00:00Z",
+    "agent": "diagnosis",
+    "status": "running",
+    "message": "CRAC-2: diagnosing alert ALT-001 (medium) with us.openai.gpt-5.6-luna",
+    "data": {}
+   },
+   {
+    "ts": "2026-10-23T23:00:00Z",
+    "agent": "diagnosis",
+    "status": "warning",
+    "message": "CRAC-2: using fallback diagnosis (offline mode)",
+    "data": {
+     "unit_id": "CRAC-2",
+     "alert_id": "ALT-001",
+     "source": "fallback",
+     "model": null,
+     "root_cause": "overstrain fault",
+     "confidence": "low",
+     "summary": "Replace the component at the next planned window. Automatic fallback: the language model was not used (offline mode). Reasons come from the alert rules.",
+     "evidence": [
+      "lube wear-metal +52% vs healthy baseline (rule)",
+      "vibration +61% vs healthy baseline (rule)",
+      "estimated remaining life about 36-48 h (wear-threshold projection, heuristic, not a validated RUL)",
+      "part lead time 2 days (placeholder) is longer than the estimated life, so expedite shipping or use a spare",
+      "severity MEDIUM: estimated life 48 h is at or below 48 h"
+     ],
+     "next_steps": [
+      "Replace the component at the next planned window"
+     ],
+     "citations": [
+      {
+       "id": "SIM-MAN-7.2",
+       "title": "Overstrain: belt and impeller"
+      },
+      {
+       "id": "SIM-MAN-9.4",
+       "title": "Response times by severity"
+      }
+     ],
+     "part": {
+      "name": "Fan belt and impeller kit",
+      "in_stock": 2,
+      "lead_time_days": 2,
+      "expedite_days": 1,
+      "expedite_fee_usd": 120,
+      "part_id": "FAN-KIT-02"
+     },
+     "numbers": {
+      "risk": 0.255,
+      "risk_kind": "heuristic_drift_rule",
+      "severity": "medium",
+      "threshold": 0.049,
+      "rul_range_hours": [
+       36.2,
+       47.9
+      ],
+      "rul_method": "wear-threshold projection (heuristic, not validated RUL)",
+      "source": "predict.py (not written by the LLM)"
+     },
+     "fallback_reason": "offline mode"
+    }
+   },
+   {
+    "ts": "2026-10-23T23:00:00Z",
+    "agent": "impact",
+    "status": "warning",
+    "message": "CRAC-2: using fallback (offline mode)",
+    "data": {}
+   },
+   {
+    "ts": "2026-10-23T23:00:00Z",
+    "agent": "impact",
+    "status": "done",
+    "message": "CRAC-2: migrate R06, R05 (30 min); without it racks hit 32 C in 13 min",
+    "data": {
+     "migrate_racks": [
+      "R06",
+      "R05"
+     ],
+     "rationale": "move lowest-priority workloads first until safe",
+     "minutes_to_limit_without_migration": 13,
+     "after": {
+      "load_kw_staying": 18.0,
+      "neighbor_spare_kw": 30.0,
+      "uncovered_kw": 0.0,
+      "minutes_to_thermal_limit": null,
+      "safe_to_take_offline": true,
+      "migration_minutes": 30,
+      "max_inlet_c": 32.0
+     },
+     "headline": "migrate R06, R05 (30 min); without it racks hit 32 C in 13 min",
+     "source": "fallback"
+    }
+   },
+   {
+    "ts": "2026-10-23T23:00:00Z",
+    "agent": "scheduler",
+    "status": "warning",
+    "message": "CRAC-2: using fallback (offline mode)",
+    "data": {}
+   },
+   {
+    "ts": "2026-10-23T23:00:00Z",
+    "agent": "scheduler",
+    "status": "done",
+    "message": "CRAC-2: Fix tonight, night crew in 6 h, expected $5,055 (placeholder inputs)",
+    "data": {
+     "option_id": "fix_now",
+     "option": "Fix tonight",
+     "shift": {
+      "shift_id": "S1",
+      "starts_in_hours": 6,
+      "crew": "night crew"
+     },
+     "expected_cost_usd": 5055,
+     "rationale": "cheapest expected-cost option, earliest shift after the part arrives",
+     "risk_note": null,
+     "headline": "Fix tonight, night crew in 6 h, expected $5,055 (placeholder inputs)",
+     "source": "fallback"
+    }
+   },
+   {
+    "ts": "2026-10-23T23:00:00Z",
+    "agent": "comms",
+    "status": "warning",
+    "message": "CRAC-2: using fallback (offline mode)",
+    "data": {}
+   },
+   {
+    "ts": "2026-10-23T23:00:00Z",
+    "agent": "comms",
+    "status": "done",
+    "message": "CRAC-2: email drafted: [MEDIUM] CRAC-2: maintenance plan needs approval",
+    "data": {
+     "subject": "[MEDIUM] CRAC-2: maintenance plan needs approval",
+     "body": "The maintenance crew prepared a plan for CRAC-2. Details below.\n\n--- facts (computed, not written by the AI) ---\nUnit: CRAC-2   Alert: ALT-001   Severity: MEDIUM\nRisk: 26%   Estimated remaining life: 36-48 h (heuristic)\nLikely cause: overstrain fault\nWorkloads to move first: R06, R05\nPlan: Fix tonight, night crew in 6 h, expected $5,055 (placeholder inputs)\n\nNothing has been ordered or scheduled. Approve or reject: open the maintenance dashboard and review case CASE-ALT-001-CRAC-2\nPrototype: simulated sensor data, parts, suppliers and prices.",
+     "headline": "email drafted: [MEDIUM] CRAC-2: maintenance plan needs approval",
+     "source": "fallback"
+    }
+   },
+   {
+    "ts": "2026-10-23T23:00:00Z",
+    "agent": "supervisor",
+    "status": "alert",
+    "message": "CRAC-2: plan ready, waiting for human approval: Plan built by the fixed-order fallback.",
+    "data": {
+     "headline": "Plan built by the fixed-order fallback.",
+     "steps": [
+      "severity MEDIUM: rule-based severity",
+      "overstrain fault",
+      "migrate R06, R05 (30 min); without it racks hit 32 C in 13 min",
+      "Fix tonight, night crew in 6 h, expected $5,055 (placeholder inputs)",
+      "email drafted: [MEDIUM] CRAC-2: maintenance plan needs approval"
+     ]
+    }
+   }
+  ],
+  "fleet": {
+   "CRAC-1": {
+    "state": "normal",
+    "risk": 0.001,
+    "vibration": 1.95
+   },
+   "CRAC-2": {
+    "state": "alert",
+    "risk": 0.255,
+    "vibration": 3.22
+   },
+   "CRAC-3": {
+    "state": "normal",
+    "risk": 0.001,
+    "vibration": 2.04
+   },
+   "CRAC-4": {
+    "state": "normal",
+    "risk": 0.001,
+    "vibration": 2.0
+   }
+  },
+  "plan": {
+   "headline": "Plan built by the fixed-order fallback.",
+   "steps": [
+    "severity MEDIUM: rule-based severity",
+    "overstrain fault",
+    "migrate R06, R05 (30 min); without it racks hit 32 C in 13 min",
+    "Fix tonight, night crew in 6 h, expected $5,055 (placeholder inputs)",
+    "email drafted: [MEDIUM] CRAC-2: maintenance plan needs approval"
+   ]
+  },
+  "email": {
+   "subject": "[MEDIUM] CRAC-2: maintenance plan needs approval",
+   "body": "The maintenance crew prepared a plan for CRAC-2. Details below.\n\n--- facts (computed, not written by the AI) ---\nUnit: CRAC-2   Alert: ALT-001   Severity: MEDIUM\nRisk: 26%   Estimated remaining life: 36-48 h (heuristic)\nLikely cause: overstrain fault\nWorkloads to move first: R06, R05\nPlan: Fix tonight, night crew in 6 h, expected $5,055 (placeholder inputs)\n\nNothing has been ordered or scheduled. Approve or reject: open the maintenance dashboard and review case CASE-ALT-001-CRAC-2\nPrototype: simulated sensor data, parts, suppliers and prices."
+  }
+ },
+ "CRAC-4|ALT-001|2026-10-23T22:30:00Z|us.openai.gpt-5.6-luna": {
+  "case_id": "CASE-ALT-001-CRAC-4",
+  "unit_id": "CRAC-4",
+  "alert_id": "ALT-001",
+  "ts": "2026-10-23T22:30:00Z",
+  "severity": "high",
+  "status": "pending_approval",
+  "results": {
+   "triage": {
+    "severity": "high",
+    "rule_severity": "medium",
+    "llm_severity": "high",
+    "is_unit_fault": true,
+    "rationale": "Real unit-specific fault: CRAC-4 shows a sustained rise in vibration from 2.44 to 3.44 and lube wear-metal from 14.81 to 19.96, with temperature rising from 45.96\u00b0C to 48.48\u00b0C over the available history. Its risk is 0.344 versus 0.001 for CRAC-1/2/3, so this is not site-wide or a common sensor issue. The prediction identifies bearing wear, cites vibration and lube deterioration, and estimates 34.7\u201345.8 hours of remaining useful life; urgent maintenance is recommended.",
+    "headline": "severity HIGH: Real unit-specific fault: CRAC-4 shows a sustained rise in vibration from 2.44 to 3.44 and",
+    "source": "llm"
+   },
+   "diagnosis": {
+    "unit_id": "CRAC-4",
+    "alert_id": "ALT-001",
+    "source": "llm",
+    "model": "us.openai.gpt-5.6-luna",
+    "root_cause": "Progressive fan-motor bearing wear, evidenced by rising vibration and lubricant wear-metal with a concurrent temperature increase.",
+    "confidence": "high",
+    "summary": "ALT-001 fired because CRAC-4 shows a sustained upward vibration trend together with increasing lubricant wear-metal and temperature, consistent with fan-motor bearing wear. Recommend human approval for bearing replacement in the next planned maintenance window; BRG-6205 is not in stock, so review the expedite option because the normal lead time exceeds the heuristic remaining-life projection.",
+    "evidence": [
+     "Predictive risk is 0.344, above the 0.049 threshold, with bearing wear identified as the failure mode.",
+     "The predictor reports lubricant wear-metal at +66% versus healthy baseline and vibration at +72% versus healthy baseline.",
+     "Sensor history shows vibration, lube wear-metal, temperature, and risk rising across the observed period.",
+     "Heuristic remaining-life projection is 34.7\u201345.8 hours; it is a wear-threshold projection, not validated RUL.",
+     "BRG-6205 stock is 0; normal lead time is 3 days and the available expedite option is 1 day."
+    ],
+    "next_steps": [
+     "Human approver should authorize maintenance in the next planned window and review expediting BRG-6205.",
+     "Isolate CRAC-4 and apply lockout/tagout before work.",
+     "Replace the fan-motor bearing assembly, re-lubricate, refit the guard, and perform a 30-minute vibration check against baseline before returning the unit to service."
+    ],
+    "citations": [
+     {
+      "id": "SIM-MAN-4.2",
+      "title": "Fan motor bearing wear: symptoms"
+     },
+     {
+      "id": "SIM-MAN-4.3",
+      "title": "Bearing assembly replacement (summary)"
+     },
+     {
+      "id": "SIM-MAN-9.4",
+      "title": "Response times by severity"
+     }
+    ],
+    "part": {
+     "name": "Fan motor bearing assembly",
+     "in_stock": 0,
+     "lead_time_days": 3,
+     "expedite_days": 1,
+     "expedite_fee_usd": 450,
+     "part_id": "BRG-6205"
+    },
+    "numbers": {
+     "risk": 0.344,
+     "risk_kind": "heuristic_drift_rule",
+     "severity": "medium",
+     "threshold": 0.049,
+     "rul_range_hours": [
+      34.7,
+      45.8
+     ],
+     "rul_method": "wear-threshold projection (heuristic, not validated RUL)",
+     "source": "predict.py (not written by the LLM)"
+    },
+    "headline": "Progressive fan-motor bearing wear, evidenced by rising vibration and lubricant wear-metal with a concurrent temperature increase."
+   },
+   "impact": {
+    "migrate_racks": [
+     "R11"
+    ],
+    "rationale": "Move R11 first. With CRAC-4 offline, all three racks total 42.0 kW against 30.0 kW neighboring spare, leaving 12.0 kW uncovered and only 13 minutes to the thermal limit. Migrating R11 alone removes 14.0 kW, leaving 28.0 kW, 0.0 kW uncovered, and the simulation marks the outage safe. This moves no critical workload (R10); R12 alone is insufficient, leaving 2.0 kW uncovered.",
+    "minutes_to_limit_without_migration": 13,
+    "after": {
+     "load_kw_staying": 28.0,
+     "neighbor_spare_kw": 30.0,
+     "uncovered_kw": 0.0,
+     "minutes_to_thermal_limit": null,
+     "safe_to_take_offline": true,
+     "migration_minutes": 15,
+     "max_inlet_c": 32.0
+    },
+    "headline": "migrate R11 (15 min); without it racks hit 32 C in 13 min",
+    "source": "llm"
+   },
+   "procurement": {
+    "action": "draft_po",
+    "part_id": "BRG-6205",
+    "supplier": "Sim Bearings Co",
+    "supplier_id": "SUP-A",
+    "shipping": "expedite",
+    "qty": 1,
+    "arrival_hours": 24,
+    "total_usd": 2250,
+    "rationale": "CRAC-4 needs one BRG-6205 and on-hand stock is 0. Estimated remaining life is 34.7\u201345.8 hours (about 1.4\u20131.9 days), so standard delivery (3 days from SUP-A or 2 days from SUP-B) risks missing the need. Recommend a draft PO for 1 unit from SUP-A with expedited delivery in 1 day; estimated cost is $2,250 ($1,800 part + $450 expedite), which is slightly less than SUP-B expedited at $2,300.",
+    "status": "DRAFT, not placed",
+    "headline": "draft PO: 1 x BRG-6205 from Sim Bearings Co, expedite, arrives in ~24 h, $2,250 (not placed)",
+    "source": "llm"
+   },
+   "cost": {
+    "unit_id": "CRAC-4",
+    "alert_id": "ALT-001",
+    "severity": "medium",
+    "options": [
+     {
+      "id": "run_to_failure",
+      "label": "Keep running until it fails",
+      "fix_in_hours": null,
+      "p_fail_first": 0.95,
+      "if_it_fails_usd": 46000,
+      "if_it_holds_usd": 0,
+      "expedite_fee_usd": 0,
+      "expected_cost_usd": 43700,
+      "note": "Unplanned outage plus emergency call-out. Chance capped at 95% because the life range is a heuristic."
+     },
+     {
+      "id": "fix_now",
+      "label": "Fix as soon as the part arrives (expedite)",
+      "fix_in_hours": 24,
+      "p_fail_first": 0.05,
+      "if_it_fails_usd": 46450,
+      "if_it_holds_usd": 3350,
+      "expedite_fee_usd": 450,
+      "expected_cost_usd": 5505,
+      "note": "Part out of stock: expedite adds 450 USD and arrives in about 24 h."
+     },
+     {
+      "id": "fix_next_window",
+      "label": "Wait for the next planned window",
+      "fix_in_hours": 72,
+      "p_fail_first": 0.95,
+      "if_it_fails_usd": 46000,
+      "if_it_holds_usd": 2900,
+      "expedite_fee_usd": 0,
+      "expected_cost_usd": 43845,
+      "note": "Standard part lead time (72 h) and the next window (36 h)."
+     }
+    ],
+    "recommended": "fix_now",
+    "saving_vs_run_to_failure_usd": 38195,
+    "life_range_hours": [
+     34.7,
+     45.8
+    ],
+    "assumptions": {
+     "downtime_cost_per_hour": 10000,
+     "outage_hours": 4,
+     "collateral_damage_usd": 3000,
+     "part_cost_usd": 1800,
+     "planned_labor_usd": 600,
+     "emergency_labor_usd": 1200,
+     "migration_cost_usd": 500,
+     "tonight_hours": 6,
+     "next_window_hours": 36,
+     "source": "PLACEHOLDERS, replace with the customer's real numbers",
+     "p_fail_rule": "5% at 35 h rising to 95% at 46 h (heuristic life range)"
+    },
+    "disclaimer": "Illustrative estimate from placeholder inputs. Not a quote or a guarantee.",
+    "events": [
+     {
+      "ts": "2026-10-23T22:30:00Z",
+      "agent": "scheduler",
+      "status": "done",
+      "message": "CRAC-4: cheapest option is 'Fix as soon as the part arrives (expedite)', expected $5,505 vs $43,700 to run to failure (placeholder inputs)",
+      "data": {
+       "recommended": "fix_now",
+       "saving_usd": 38195
+      }
+     }
+    ]
+   },
+   "scheduler": {
+    "option_id": "fix_now",
+    "option": "Fix as soon as the part arrives (expedite)",
+    "shift": {
+     "shift_id": "S3",
+     "starts_in_hours": 26,
+     "crew": "night crew"
+    },
+    "expected_cost_usd": 5505,
+    "rationale": "Choose fix_now: it has the lowest expected cost at $5,505 and only a 0.05 probability of failure before repair, versus $43,700 for run-to-failure and $43,845 for the next window. The part arrives in 24 hours; S3 starts in 26 hours, so the part will be on site before the earliest eligible crew shift. S3 also starts before the estimated remaining-life range of 34.7\u201345.8 hours, minimizing failure risk. Human approval required.",
+    "risk_note": null,
+    "headline": "Fix as soon as the part arrives (expedite), night crew in 26 h, expected $5,505 (placeholder inputs)",
+    "source": "llm"
+   },
+   "comms": {
+    "subject": "Approval needed: CRAC-4 bearing replacement plan",
+    "body": "CRAC-4 has a high-severity condition consistent with progressive fan-motor bearing wear. Vibration and lubricant wear-metal are rising alongside temperature. Move workload R11 first; without that move, racks could reach 32\u00b0C in 13 minutes.\n\nThe crew proposes expediting one BRG-6205 bearing from Sim Bearings Co (about 24 hours; $2,250), then performing the repair with the night crew in 26 hours. The estimated repair cost is $5,505, based on placeholder inputs. Nothing has been ordered or scheduled.\n\nPlease review case CASE-ALT-001-CRAC-4 in the maintenance dashboard and approve or reject the expedited part purchase and repair plan.\n\n--- facts (computed, not written by the AI) ---\nUnit: CRAC-4   Alert: ALT-001   Severity: HIGH\nRisk: 34%   Estimated remaining life: 35-46 h (heuristic)\nLikely cause: Progressive fan-motor bearing wear, evidenced by rising vibration and lubricant wear-metal with a concurrent temperature increase.\nWorkloads to move first: R11\nParts: draft PO: 1 x BRG-6205 from Sim Bearings Co, expedite, arrives in ~24 h, $2,250 (not placed)\nPlan: Fix as soon as the part arrives (expedite), night crew in 26 h, expected $5,505 (placeholder inputs)\n\nNothing has been ordered or scheduled. Approve or reject: open the maintenance dashboard and review case CASE-ALT-001-CRAC-4\nPrototype: simulated sensor data, parts, suppliers and prices.",
+    "headline": "email drafted: Approval needed: CRAC-4 bearing replacement plan",
+    "source": "llm"
+   }
+  },
+  "events": [
+   {
+    "ts": "2026-10-23T22:30:00Z",
+    "agent": "supervisor",
+    "status": "running",
+    "message": "CRAC-4: opened CASE-ALT-001-CRAC-4 (MEDIUM), planning with us.openai.gpt-5.6-luna",
+    "data": {}
+   },
+   {
+    "ts": "2026-10-23T22:30:00Z",
+    "agent": "triage",
+    "status": "running",
+    "message": "CRAC-4: called get_prediction()",
+    "data": {}
+   },
+   {
+    "ts": "2026-10-23T22:30:00Z",
+    "agent": "triage",
+    "status": "running",
+    "message": "CRAC-4: called get_sensor_history()",
+    "data": {}
+   },
+   {
+    "ts": "2026-10-23T22:30:00Z",
+    "agent": "triage",
+    "status": "running",
+    "message": "CRAC-4: called get_fleet_status()",
+    "data": {}
+   },
+   {
+    "ts": "2026-10-23T22:30:00Z",
+    "agent": "triage",
+    "status": "done",
+    "message": "CRAC-4: severity HIGH: Real unit-specific fault: CRAC-4 shows a sustained rise in vibration from 2.44 to 3.44 and",
+    "data": {
+     "severity": "high",
+     "rule_severity": "medium",
+     "llm_severity": "high",
+     "is_unit_fault": true,
+     "rationale": "Real unit-specific fault: CRAC-4 shows a sustained rise in vibration from 2.44 to 3.44 and lube wear-metal from 14.81 to 19.96, with temperature rising from 45.96\u00b0C to 48.48\u00b0C over the available history. Its risk is 0.344 versus 0.001 for CRAC-1/2/3, so this is not site-wide or a common sensor issue. The prediction identifies bearing wear, cites vibration and lube deterioration, and estimates 34.7\u201345.8 hours of remaining useful life; urgent maintenance is recommended.",
+     "headline": "severity HIGH: Real unit-specific fault: CRAC-4 shows a sustained rise in vibration from 2.44 to 3.44 and",
+     "source": "llm"
+    }
+   },
+   {
+    "ts": "2026-10-23T22:30:00Z",
+    "agent": "supervisor",
+    "status": "running",
+    "message": "CRAC-4: called run_triage()",
+    "data": {}
+   },
+   {
+    "ts": "2026-10-23T22:30:00Z",
+    "agent": "diagnosis",
+    "status": "running",
+    "message": "CRAC-4: diagnosing alert ALT-001 (medium) with us.openai.gpt-5.6-luna",
+    "data": {}
+   },
+   {
+    "ts": "2026-10-23T22:30:00Z",
+    "agent": "diagnosis",
+    "status": "running",
+    "message": "CRAC-4: called run_predict()",
+    "data": {
+     "tool": "run_predict",
+     "args": {}
+    }
+   },
+   {
+    "ts": "2026-10-23T22:30:00Z",
+    "agent": "diagnosis",
+    "status": "running",
+    "message": "CRAC-4: called get_sensor_history({\"samples\": 12})",
+    "data": {
+     "tool": "get_sensor_history",
+     "args": {
+      "samples": 12
+     }
+    }
+   },
+   {
+    "ts": "2026-10-23T22:30:00Z",
+    "agent": "diagnosis",
+    "status": "running",
+    "message": "CRAC-4: called search_manual({\"query\": \"CRAC-4 medium vibration alert diagnosis bearing lubrication)",
+    "data": {
+     "tool": "search_manual",
+     "args": {
+      "query": "CRAC-4 medium vibration alert diagnosis bearing lubrication temperature maintenance next step"
+     }
+    }
+   },
+   {
+    "ts": "2026-10-23T22:30:00Z",
+    "agent": "diagnosis",
+    "status": "running",
+    "message": "CRAC-4: called check_parts_stock({\"part_id\": \"BRG-6205\"})",
+    "data": {
+     "tool": "check_parts_stock",
+     "args": {
+      "part_id": "BRG-6205"
+     }
+    }
+   },
+   {
+    "ts": "2026-10-23T22:30:00Z",
+    "agent": "diagnosis",
+    "status": "done",
+    "message": "CRAC-4: Progressive fan-motor bearing wear, evidenced by rising vibration and lubricant wear-metal with a concurrent temperature increase. (confidence high, 3 manual refs)",
+    "data": {
+     "unit_id": "CRAC-4",
+     "alert_id": "ALT-001",
+     "source": "llm",
+     "model": "us.openai.gpt-5.6-luna",
+     "root_cause": "Progressive fan-motor bearing wear, evidenced by rising vibration and lubricant wear-metal with a concurrent temperature increase.",
+     "confidence": "high",
+     "summary": "ALT-001 fired because CRAC-4 shows a sustained upward vibration trend together with increasing lubricant wear-metal and temperature, consistent with fan-motor bearing wear. Recommend human approval for bearing replacement in the next planned maintenance window; BRG-6205 is not in stock, so review the expedite option because the normal lead time exceeds the heuristic remaining-life projection.",
+     "evidence": [
+      "Predictive risk is 0.344, above the 0.049 threshold, with bearing wear identified as the failure mode.",
+      "The predictor reports lubricant wear-metal at +66% versus healthy baseline and vibration at +72% versus healthy baseline.",
+      "Sensor history shows vibration, lube wear-metal, temperature, and risk rising across the observed period.",
+      "Heuristic remaining-life projection is 34.7\u201345.8 hours; it is a wear-threshold projection, not validated RUL.",
+      "BRG-6205 stock is 0; normal lead time is 3 days and the available expedite option is 1 day."
+     ],
+     "next_steps": [
+      "Human approver should authorize maintenance in the next planned window and review expediting BRG-6205.",
+      "Isolate CRAC-4 and apply lockout/tagout before work.",
+      "Replace the fan-motor bearing assembly, re-lubricate, refit the guard, and perform a 30-minute vibration check against baseline before returning the unit to service."
+     ],
+     "citations": [
+      {
+       "id": "SIM-MAN-4.2",
+       "title": "Fan motor bearing wear: symptoms"
+      },
+      {
+       "id": "SIM-MAN-4.3",
+       "title": "Bearing assembly replacement (summary)"
+      },
+      {
+       "id": "SIM-MAN-9.4",
+       "title": "Response times by severity"
+      }
+     ],
+     "part": {
+      "name": "Fan motor bearing assembly",
+      "in_stock": 0,
+      "lead_time_days": 3,
+      "expedite_days": 1,
+      "expedite_fee_usd": 450,
+      "part_id": "BRG-6205"
+     },
+     "numbers": {
+      "risk": 0.344,
+      "risk_kind": "heuristic_drift_rule",
+      "severity": "medium",
+      "threshold": 0.049,
+      "rul_range_hours": [
+       34.7,
+       45.8
+      ],
+      "rul_method": "wear-threshold projection (heuristic, not validated RUL)",
+      "source": "predict.py (not written by the LLM)"
+     }
+    }
+   },
+   {
+    "ts": "2026-10-23T22:30:00Z",
+    "agent": "supervisor",
+    "status": "running",
+    "message": "CRAC-4: called run_diagnosis()",
+    "data": {}
+   },
+   {
+    "ts": "2026-10-23T22:30:00Z",
+    "agent": "impact",
+    "status": "running",
+    "message": "CRAC-4: called get_rack_impact()",
+    "data": {}
+   },
+   {
+    "ts": "2026-10-23T22:30:00Z",
+    "agent": "impact",
+    "status": "running",
+    "message": "CRAC-4: called simulate_migration({\"racks\": [\"R11\"]})",
+    "data": {}
+   },
+   {
+    "ts": "2026-10-23T22:30:00Z",
+    "agent": "impact",
+    "status": "running",
+    "message": "CRAC-4: called simulate_migration({\"racks\": [\"R12\"]})",
+    "data": {}
+   },
+   {
+    "ts": "2026-10-23T22:30:00Z",
+    "agent": "impact",
+    "status": "done",
+    "message": "CRAC-4: migrate R11 (15 min); without it racks hit 32 C in 13 min",
+    "data": {
+     "migrate_racks": [
+      "R11"
+     ],
+     "rationale": "Move R11 first. With CRAC-4 offline, all three racks total 42.0 kW against 30.0 kW neighboring spare, leaving 12.0 kW uncovered and only 13 minutes to the thermal limit. Migrating R11 alone removes 14.0 kW, leaving 28.0 kW, 0.0 kW uncovered, and the simulation marks the outage safe. This moves no critical workload (R10); R12 alone is insufficient, leaving 2.0 kW uncovered.",
+     "minutes_to_limit_without_migration": 13,
+     "after": {
+      "load_kw_staying": 28.0,
+      "neighbor_spare_kw": 30.0,
+      "uncovered_kw": 0.0,
+      "minutes_to_thermal_limit": null,
+      "safe_to_take_offline": true,
+      "migration_minutes": 15,
+      "max_inlet_c": 32.0
+     },
+     "headline": "migrate R11 (15 min); without it racks hit 32 C in 13 min",
+     "source": "llm"
+    }
+   },
+   {
+    "ts": "2026-10-23T22:30:00Z",
+    "agent": "supervisor",
+    "status": "running",
+    "message": "CRAC-4: called run_impact()",
+    "data": {}
+   },
+   {
+    "ts": "2026-10-23T22:30:00Z",
+    "agent": "procurement",
+    "status": "running",
+    "message": "CRAC-4: called check_parts_stock()",
+    "data": {}
+   },
+   {
+    "ts": "2026-10-23T22:30:00Z",
+    "agent": "procurement",
+    "status": "running",
+    "message": "CRAC-4: called list_suppliers()",
+    "data": {}
+   },
+   {
+    "ts": "2026-10-23T22:30:00Z",
+    "agent": "procurement",
+    "status": "running",
+    "message": "CRAC-4: called get_deadline()",
+    "data": {}
+   },
+   {
+    "ts": "2026-10-23T22:30:00Z",
+    "agent": "procurement",
+    "status": "done",
+    "message": "CRAC-4: draft PO: 1 x BRG-6205 from Sim Bearings Co, expedite, arrives in ~24 h, $2,250 (not placed)",
+    "data": {
+     "action": "draft_po",
+     "part_id": "BRG-6205",
+     "supplier": "Sim Bearings Co",
+     "supplier_id": "SUP-A",
+     "shipping": "expedite",
+     "qty": 1,
+     "arrival_hours": 24,
+     "total_usd": 2250,
+     "rationale": "CRAC-4 needs one BRG-6205 and on-hand stock is 0. Estimated remaining life is 34.7\u201345.8 hours (about 1.4\u20131.9 days), so standard delivery (3 days from SUP-A or 2 days from SUP-B) risks missing the need. Recommend a draft PO for 1 unit from SUP-A with expedited delivery in 1 day; estimated cost is $2,250 ($1,800 part + $450 expedite), which is slightly less than SUP-B expedited at $2,300.",
+     "status": "DRAFT, not placed",
+     "headline": "draft PO: 1 x BRG-6205 from Sim Bearings Co, expedite, arrives in ~24 h, $2,250 (not placed)",
+     "source": "llm"
+    }
+   },
+   {
+    "ts": "2026-10-23T22:30:00Z",
+    "agent": "supervisor",
+    "status": "running",
+    "message": "CRAC-4: called run_procurement()",
+    "data": {}
+   },
+   {
+    "ts": "2026-10-23T22:30:00Z",
+    "agent": "scheduler",
+    "status": "running",
+    "message": "CRAC-4: called get_cost_options()",
+    "data": {}
+   },
+   {
+    "ts": "2026-10-23T22:30:00Z",
+    "agent": "scheduler",
+    "status": "running",
+    "message": "CRAC-4: called get_part_arrival()",
+    "data": {}
+   },
+   {
+    "ts": "2026-10-23T22:30:00Z",
+    "agent": "scheduler",
+    "status": "running",
+    "message": "CRAC-4: called get_crew_shifts()",
+    "data": {}
+   },
+   {
+    "ts": "2026-10-23T22:30:00Z",
+    "agent": "scheduler",
+    "status": "running",
+    "message": "CRAC-4: called get_deadline()",
+    "data": {}
+   },
+   {
+    "ts": "2026-10-23T22:30:00Z",
+    "agent": "scheduler",
+    "status": "done",
+    "message": "CRAC-4: Fix as soon as the part arrives (expedite), night crew in 26 h, expected $5,505 (placeholder inputs)",
+    "data": {
+     "option_id": "fix_now",
+     "option": "Fix as soon as the part arrives (expedite)",
+     "shift": {
+      "shift_id": "S3",
+      "starts_in_hours": 26,
+      "crew": "night crew"
+     },
+     "expected_cost_usd": 5505,
+     "rationale": "Choose fix_now: it has the lowest expected cost at $5,505 and only a 0.05 probability of failure before repair, versus $43,700 for run-to-failure and $43,845 for the next window. The part arrives in 24 hours; S3 starts in 26 hours, so the part will be on site before the earliest eligible crew shift. S3 also starts before the estimated remaining-life range of 34.7\u201345.8 hours, minimizing failure risk. Human approval required.",
+     "risk_note": null,
+     "headline": "Fix as soon as the part arrives (expedite), night crew in 26 h, expected $5,505 (placeholder inputs)",
+     "source": "llm"
+    }
+   },
+   {
+    "ts": "2026-10-23T22:30:00Z",
+    "agent": "supervisor",
+    "status": "running",
+    "message": "CRAC-4: called run_scheduler()",
+    "data": {}
+   },
+   {
+    "ts": "2026-10-23T22:30:00Z",
+    "agent": "comms",
+    "status": "running",
+    "message": "CRAC-4: called get_case_summary()",
+    "data": {}
+   },
+   {
+    "ts": "2026-10-23T22:30:00Z",
+    "agent": "comms",
+    "status": "done",
+    "message": "CRAC-4: email drafted: Approval needed: CRAC-4 bearing replacement plan",
+    "data": {
+     "subject": "Approval needed: CRAC-4 bearing replacement plan",
+     "body": "CRAC-4 has a high-severity condition consistent with progressive fan-motor bearing wear. Vibration and lubricant wear-metal are rising alongside temperature. Move workload R11 first; without that move, racks could reach 32\u00b0C in 13 minutes.\n\nThe crew proposes expediting one BRG-6205 bearing from Sim Bearings Co (about 24 hours; $2,250), then performing the repair with the night crew in 26 hours. The estimated repair cost is $5,505, based on placeholder inputs. Nothing has been ordered or scheduled.\n\nPlease review case CASE-ALT-001-CRAC-4 in the maintenance dashboard and approve or reject the expedited part purchase and repair plan.\n\n--- facts (computed, not written by the AI) ---\nUnit: CRAC-4   Alert: ALT-001   Severity: HIGH\nRisk: 34%   Estimated remaining life: 35-46 h (heuristic)\nLikely cause: Progressive fan-motor bearing wear, evidenced by rising vibration and lubricant wear-metal with a concurrent temperature increase.\nWorkloads to move first: R11\nParts: draft PO: 1 x BRG-6205 from Sim Bearings Co, expedite, arrives in ~24 h, $2,250 (not placed)\nPlan: Fix as soon as the part arrives (expedite), night crew in 26 h, expected $5,505 (placeholder inputs)\n\nNothing has been ordered or scheduled. Approve or reject: open the maintenance dashboard and review case CASE-ALT-001-CRAC-4\nPrototype: simulated sensor data, parts, suppliers and prices.",
+     "headline": "email drafted: Approval needed: CRAC-4 bearing replacement plan",
+     "source": "llm"
+    }
+   },
+   {
+    "ts": "2026-10-23T22:30:00Z",
+    "agent": "supervisor",
+    "status": "running",
+    "message": "CRAC-4: called run_comms()",
+    "data": {}
+   },
+   {
+    "ts": "2026-10-23T22:30:00Z",
+    "agent": "supervisor",
+    "status": "alert",
+    "message": "CRAC-4: plan ready, waiting for human approval: Approve expedited CRAC-4 fan-motor bearing replacement: migrate R11 now, obtain BRG-6205, and repair with the night crew",
+    "data": {
+     "headline": "Approve expedited CRAC-4 fan-motor bearing replacement: migrate R11 now, obtain BRG-6205, and repair with the night crew in 26 hours.",
+     "steps": [
+      "Treat ALT-001 as a high-severity, unit-specific progressive fan-motor bearing-wear fault; estimated remaining life is 34.7\u201345.8 hours.",
+      "Migrate rack R11 first; without migration, the thermal limit may be reached in 13 minutes, while R11 migration leaves neighboring spare capacity sufficient for the listed racks.",
+      "Approve the draft purchase of 1 \u00d7 BRG-6205 from Sim Bearings Co with expedited delivery in about 24 hours for $2,250; the PO is not placed.",
+      "Approve the fix_now option: night crew S3 in 26 hours, with expected cost $5,505; human approval is required before ordering or scheduling."
+     ]
+    }
+   }
+  ],
+  "fleet": {
+   "CRAC-1": {
+    "state": "normal",
+    "risk": 0.001,
+    "vibration": 2.01
+   },
+   "CRAC-2": {
+    "state": "normal",
+    "risk": 0.001,
+    "vibration": 2.03
+   },
+   "CRAC-3": {
+    "state": "normal",
+    "risk": 0.001,
+    "vibration": 2.0
+   },
+   "CRAC-4": {
+    "state": "alert",
+    "risk": 0.344,
+    "vibration": 3.44
+   }
+  },
+  "plan": {
+   "headline": "Approve expedited CRAC-4 fan-motor bearing replacement: migrate R11 now, obtain BRG-6205, and repair with the night crew in 26 hours.",
+   "steps": [
+    "Treat ALT-001 as a high-severity, unit-specific progressive fan-motor bearing-wear fault; estimated remaining life is 34.7\u201345.8 hours.",
+    "Migrate rack R11 first; without migration, the thermal limit may be reached in 13 minutes, while R11 migration leaves neighboring spare capacity sufficient for the listed racks.",
+    "Approve the draft purchase of 1 \u00d7 BRG-6205 from Sim Bearings Co with expedited delivery in about 24 hours for $2,250; the PO is not placed.",
+    "Approve the fix_now option: night crew S3 in 26 hours, with expected cost $5,505; human approval is required before ordering or scheduling."
+   ]
+  },
+  "email": {
+   "subject": "Approval needed: CRAC-4 bearing replacement plan",
+   "body": "CRAC-4 has a high-severity condition consistent with progressive fan-motor bearing wear. Vibration and lubricant wear-metal are rising alongside temperature. Move workload R11 first; without that move, racks could reach 32\u00b0C in 13 minutes.\n\nThe crew proposes expediting one BRG-6205 bearing from Sim Bearings Co (about 24 hours; $2,250), then performing the repair with the night crew in 26 hours. The estimated repair cost is $5,505, based on placeholder inputs. Nothing has been ordered or scheduled.\n\nPlease review case CASE-ALT-001-CRAC-4 in the maintenance dashboard and approve or reject the expedited part purchase and repair plan.\n\n--- facts (computed, not written by the AI) ---\nUnit: CRAC-4   Alert: ALT-001   Severity: HIGH\nRisk: 34%   Estimated remaining life: 35-46 h (heuristic)\nLikely cause: Progressive fan-motor bearing wear, evidenced by rising vibration and lubricant wear-metal with a concurrent temperature increase.\nWorkloads to move first: R11\nParts: draft PO: 1 x BRG-6205 from Sim Bearings Co, expedite, arrives in ~24 h, $2,250 (not placed)\nPlan: Fix as soon as the part arrives (expedite), night crew in 26 h, expected $5,505 (placeholder inputs)\n\nNothing has been ordered or scheduled. Approve or reject: open the maintenance dashboard and review case CASE-ALT-001-CRAC-4\nPrototype: simulated sensor data, parts, suppliers and prices."
+  }
+ }
+}
