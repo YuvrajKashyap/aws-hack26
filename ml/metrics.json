@@ -1,0 +1,19 @@
+{
+  "data": "data/ai4i2020.csv",
+  "main_model": "hist_gradient_boosting",
+  "n_train": 6000,
+  "n_val": 2000,
+  "n_test": 2000,
+  "test_failures": 68,
+  "threshold": 0.049310317779029965,
+  "main_pr_auc": 0.9057465444165593,
+  "main_precision": 0.5350877192982456,
+  "main_recall": 0.8970588235294118,
+  "main_confusion[tn,fp,fn,tp]": [
+    1879,
+    53,
+    7,
+    61
+  ],
+  "baseline_logreg_pr_auc": 0.44766119457175935
+}
