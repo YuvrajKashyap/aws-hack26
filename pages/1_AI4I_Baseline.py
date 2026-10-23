@@ -84,13 +84,20 @@ _TECHNICAL = {'random_forest': 'Random forest', 'gradient_boosting': 'Gradient b
 with st.sidebar:
     st.subheader('Observation controls')
     policy_name = st.selectbox('Operating policy', POLICIES,
-        format_func=lambda n: f'{_FRIENDLY[n]} ({_TECHNICAL[n]})')
+        format_func=lambda n: f'{_FRIENDLY[n]} ({_TECHNICAL[n]})', key='console_policy')
     heldout = bundle.heldout.set_index('UDI').sort_index()
     ids = heldout.index.tolist()
     uid = st.selectbox('Dataset record (not a machine ID or time sequence)', ids,
-                      index=ids.index(2016) if 2016 in ids else 0)
+                      index=ids.index(2016) if 2016 in ids else 0, key='console_record')
     st.caption('Demo: record 2016 requests review; record 2 is below the RF threshold. Independent observations, not a timeline.')
     assess = st.button('Assess record', type='primary')
+    def start_demo(record):
+        st.session_state['console_record'] = record if record in ids else ids[0]
+        st.session_state['console_policy'] = 'random_forest'
+        st.session_state['run_demo_requested'] = True
+    st.button('▶ Run demo · flagged case', on_click=start_demo, args=(2016,), width='stretch')
+    st.button('Compare below-threshold case', on_click=start_demo, args=(2,), width='stretch')
+    assess = assess or st.session_state.pop('run_demo_requested', False)
     view = st.radio('Inspection view', ['3D assembly', '2D schematic'])
     st.caption('Model evaluation and tradeoffs are in Model lab.')
 
