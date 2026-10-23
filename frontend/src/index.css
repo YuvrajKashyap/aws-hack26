@@ -221,6 +221,11 @@ body {
   opacity: 0.6;
   cursor: default;
 }
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
 @media (max-width: 1000px) {
   .kpis {
     grid-template-columns: repeat(2, 1fr);

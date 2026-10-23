@@ -95,6 +95,11 @@ export function badgesForComponent(
     .filter((label) => label.length > 0);
 }
 
+/** Returns the non-empty badge labels for a set of action records. */
+export function badgesForComponentRecords(records: ActionRecord[]): string[] {
+  return records.map((r) => r.badgeLabel).filter((label) => label.length > 0);
+}
+
 /** True if the given action kind has already been taken for the component. */
 export function hasAction(
   state: ComponentActionState,
