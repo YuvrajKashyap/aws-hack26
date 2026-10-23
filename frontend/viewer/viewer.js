@@ -45,6 +45,11 @@ const grid=new THREE.GridHelper(18,36,0x344550,0x22313b);grid.position.y=-.085;s
 const groups={};const ray=new THREE.Raycaster(),pointer=new THREE.Vector2();
 const zoneNames={drive:'Drive / spindle',process_chamber:'Process chamber',tool_head:'Tool head'};
 const detail=document.getElementById('details');
+const globalDetail=document.getElementById('assessment-detail');
+if(globalDetail){
+ const a=data.assessment;
+ globalDetail.textContent=`${a.decision||'Not assessed'} · Record ${a.record_id}\n${a.policy}\nExplanation: ${a.explanation_mode}\n`+(a.score==null?'':`Score ${Number(a.score).toFixed(4)} / threshold ${a.threshold}`);
+}
 function showZone(id){
  selected=id;
  document.querySelectorAll('[data-zone]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.zone===id)));
@@ -53,7 +58,8 @@ function showZone(id){
  const zone=data.zones.find(z=>z.id===id);
  if(zone)for(const value of zone.observations){const el=document.createElement('div');el.className='reading';el.textContent=value;detail.appendChild(el);}
  else {const p=document.createElement('p');p.textContent='Select an assembly to inspect the recorded measurements. Drag to orbit. Scroll to zoom.';detail.appendChild(p);}
- document.getElementById('detail-note').textContent=zone?'Observed values from the selected record. This is not a component diagnosis.':'Original Blender asset · illustrative geometry';
+ const inspections={drive:'Review speed and torque readings; a technician must confirm the component before any parts request.',process_chamber:'Review both temperature readings and verify sensor quality before planning an intervention.',tool_head:'Review recorded tool wear and request an inspection before deciding on replacement.'};
+ document.getElementById('detail-note').textContent=zone?`Inspection context: ${inspections[id]} These readings do not diagnose this component. Use the review form below after assessment.`:'Select a part to inspect its recorded data and inspection context. Assessment is machine-wide, not a component diagnosis.';
  if(model){
    if(id&&groups[id]){
     const box=new THREE.Box3().setFromObject(groups[id]);box.getCenter(target);
