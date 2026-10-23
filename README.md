@@ -2,6 +2,8 @@
 
 Manufacturing Track 2: predictive maintenance from sensor evidence to simulated maintenance actions.
 
+Start with the [numbered code and user walkthrough](docs/00-code-walkthrough.md) to read both workflows in execution order.
+
 - [Project skill](.agents/skills/manufacturing-track-2/SKILL.md)
 - [Architecture and build plan](docs/track-2-plan.md)
 - [Codex starter prompt](docs/codex-starter.md)
