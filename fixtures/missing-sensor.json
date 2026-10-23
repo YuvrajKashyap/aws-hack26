@@ -1,0 +1,78 @@
+{
+  "schema_version": "1",
+  "scenario_id": "missing-sensor",
+  "asset_id": "SIM-PRESS-01",
+  "start": "2026-01-01T12:00:00Z",
+  "end": "2026-01-01T12:03:00Z",
+  "source_kind": "simulated",
+  "provenance": "Original fictional press simulation; not a workshop export or measured machine history.",
+  "channels": {
+    "temperature": {
+      "unit": "C",
+      "samples": [
+        {
+          "timestamp": "2026-01-01T12:00:00Z",
+          "value": 60
+        },
+        {
+          "timestamp": "2026-01-01T12:01:00Z",
+          "value": 70
+        },
+        {
+          "timestamp": "2026-01-01T12:02:00Z",
+          "value": 82
+        },
+        {
+          "timestamp": "2026-01-01T12:03:00Z",
+          "value": 90
+        }
+      ]
+    },
+    "energy": {
+      "unit": "kWh",
+      "samples": [
+        {
+          "timestamp": "2026-01-01T12:00:00Z",
+          "value": 0.43
+        },
+        {
+          "timestamp": "2026-01-01T12:01:00Z",
+          "value": 0.5
+        },
+        {
+          "timestamp": "2026-01-01T12:02:00Z",
+          "value": 0.65
+        },
+        {
+          "timestamp": "2026-01-01T12:03:00Z",
+          "value": 0.8
+        }
+      ]
+    },
+    "vibration": {
+      "unit": "mm/s",
+      "samples": []
+    },
+    "lubricant": {
+      "unit": "percent",
+      "samples": [
+        {
+          "timestamp": "2026-01-01T12:00:00Z",
+          "value": 91
+        },
+        {
+          "timestamp": "2026-01-01T12:01:00Z",
+          "value": 80
+        },
+        {
+          "timestamp": "2026-01-01T12:02:00Z",
+          "value": 62
+        },
+        {
+          "timestamp": "2026-01-01T12:03:00Z",
+          "value": 45
+        }
+      ]
+    }
+  }
+}
