@@ -101,6 +101,8 @@ with st.sidebar:
     view = st.radio('Inspection view', ['3D assembly', '2D schematic'])
     st.caption('Model evaluation and tradeoffs are in Model lab.')
 
+st.button('▶ Run demo', type='primary', on_click=start_demo, args=(2016,), key='main_run_demo')
+st.caption('1 · Run demo   →   2 · Inspect assembly   →   3 · Remediation & actions   →   4 · Operations dashboard')
 row = heldout.loc[uid]
 active_policy = policy_for(csv_path, csv_digest, policy_name)
 if assess:
@@ -136,13 +138,47 @@ assessment = {
 render_explorer = render_3d_explorer if view == '3D assembly' else render_machine_explorer
 # The 2D renderer expects these legacy fields too.
 assessment.update(model_id=active_policy.model_id, predicted_failure=current_result.predicted_failure if current_result else None)
-components.html(render_explorer(zones, assessment), height=740 if view == '3D assembly' else 560, scrolling=True)
+inspection_tab, action_tab, cases_tab = st.tabs(['Inspect assembly', 'Remediation & actions', 'Demo cases & resilience'])
+with inspection_tab:
+    components.html(render_explorer(zones, assessment), height=740 if view == '3D assembly' else 560, scrolling=True)
+with cases_tab:
+    st.subheader('Demonstrate the supported cases')
+    st.write('Use Run demo for the AI4I flagged observation, then save a review and notification in Remediation & actions. Use Compare below-threshold case for the no-order path.')
+    st.caption('The following scenarios are a separate fictional press simulation. They do not use the AI4I classifier or diagnose the illustrated assembly.')
+    if st.button('Run resilience demo · all fictional cases'):
+        from src.orchestrator import run_scenario
+        from src.explanation import SimulatedOutage
+        replay_path = str(Path(os.getenv('DEMO_LEDGER_PATH', 'data/ai4i-orders.sqlite')).with_name('resilience-demo.sqlite'))
+        try:
+            runs = [run_scenario(name, replay_path) for name in ('normal', 'degrading', 'missing-sensor')]
+            repeated = run_scenario('degrading', replay_path)
+            outage = run_scenario('degrading', replay_path, explainer=SimulatedOutage())
+            st.session_state['resilience_cases'] = (runs, repeated, outage)
+        except (ValueError, OSError) as exc:
+            st.error('Replay could not complete: ' + str(exc))
+    if 'resilience_cases' in st.session_state:
+        runs, repeated, outage = st.session_state['resilience_cases']
+        for replay in runs:
+            st.markdown('**' + replay.window.scenario_id + ' · ' + replay.assessment.risk_band.upper() + '**')
+            st.write(replay.proposal.reason)
+            st.write('Simulated order: ' + (replay.order.status if replay.order else 'none'))
+            for error in replay.errors:
+                st.error(error)
+            with st.expander('Evidence and action trace · ' + replay.window.scenario_id):
+                st.json(replay.model_dump(mode='json'))
+        deduplicated = runs[1].order is not None and repeated.order is not None and runs[1].order.order_id == repeated.order.order_id
+        st.write('Repeated request reuses the same order: ' + str(deduplicated))
+        st.write('Explanation outage response: ' + outage.explanation.mode)
+        st.caption('No real reservations, dispatch, purchasing, or notifications. Missing evidence requires review; remaining useful life is unsupported.')
+
 if current_result is None:
     if stale:
         st.session_state.pop('ai4i_result', None)
         st.session_state.pop('ai4i_result_key', None)
         st.warning('Selection changed. Previous decision hidden; press Assess record for this observation.')
     st.info('Readings are ready to explore. Press Assess record in the sidebar to request a decision and explanation. No live Bedrock request or order is triggered by opening this view.')
+    with action_tab:
+        st.info('Click Run demo or Assess record to open review actions for a flagged observation.')
     st.stop()
 
 # ── Result summary + explorer as the main workspace ──
@@ -169,70 +205,71 @@ with st.expander('Explanation engine and Bedrock status'):
         st.write('Configured inference profile: ' + os.getenv('BEDROCK_MODEL_ID', 'not configured'))
         st.caption('A fallback result means the live request failed or its evidence selection was rejected.')
 
-if result.order:
-    st.warning('SIMULATED technician-review order created. No part or maintenance slot reserved.')
-    with st.expander('Guided case walkthrough · observation to remediation review', expanded=True):
-        st.markdown('''1. **Inspect the observation.** Click the assembly zones and review the measured inputs and global assessment. A dataset failure label is not a diagnosis of a particular part.
-2. **Acknowledge the concern.** Save an acknowledgment with a simulation note. The order is retained for this exact assessment.
-3. **Plan an inspection.** Choose Inspection pending, propose technician inspection and work scope, and describe what needs verification.
-4. **Review remediation options.** Propose inventory verification, parts-request review, a maintenance window, or specialist support only as appropriate after diagnosis. No stock, part, or repair need is established by this classifier.
-5. **Record the review outcome.** In this rehearsal, save Review completed with a note describing the proposed plan and unresolved checks. This completes the simulated review, not a repair or safety clearance.
-6. **Preview the communication.** Inspect or record the simulated notification below. No email is delivered and no operational action is executed.''')
+with action_tab:
+    if result.order:
+        st.warning('SIMULATED technician-review order created. No part or maintenance slot reserved.')
+        with st.expander('Guided case walkthrough · observation to remediation review', expanded=True):
+            st.markdown('''1. **Inspect the observation.** Click the assembly zones and review the measured inputs and global assessment. A dataset failure label is not a diagnosis of a particular part.
+    2. **Acknowledge the concern.** Save an acknowledgment with a simulation note. The order is retained for this exact assessment.
+    3. **Plan an inspection.** Choose Inspection pending, propose technician inspection and work scope, and describe what needs verification.
+    4. **Review remediation options.** Propose inventory verification, parts-request review, a maintenance window, or specialist support only as appropriate after diagnosis. No stock, part, or repair need is established by this classifier.
+    5. **Record the review outcome.** In this rehearsal, save Review completed with a note describing the proposed plan and unresolved checks. This completes the simulated review, not a repair or safety clearance.
+    6. **Preview the communication.** Inspect or record the simulated notification below. No email is delivered and no operational action is executed.''')
 
-    # Simulated review notification. Preview is always shown; recording it routes
-    # through the shared outbox in simulated mode (no publisher, no live opt-in), so
-    # nothing is ever sent and a page rerun cannot trigger a real send. The outbox
-    # is idempotent on the order id + content, so repeated presses do not duplicate.
-    order_id = result.order.order_id
-    from src.review import ReviewStore
-    reviews = ReviewStore(os.getenv('DEMO_LEDGER_PATH', 'data/ai4i-orders.sqlite'))
-    previous_review = reviews.get(order_id)
-    st.subheader('Technician review · simulated')
-    st.caption('Record a demo inspection outcome. Completion does not certify equipment safety, dispatch a technician, or alter the model result. Do not enter personal or sensitive information.')
-    if previous_review:
-        st.info(f"{previous_review['state']} · revision {previous_review['version']}")
-        st.write(previous_review['note'])
-    with st.form('review-' + order_id):
-        states = ['Acknowledged', 'Inspection pending', 'Review completed']
-        state = st.selectbox('Review disposition', states, index=states.index(previous_review['state']) if previous_review else 0)
-        followups = st.multiselect('Proposed follow-up for human review', [
-            'Request technician inspection', 'Check spare inventory after component confirmation',
-            'Draft work scope', 'Review a maintenance window',
-            'Evaluate specialist / contractor support', 'Review a parts request after diagnosis'])
-        st.caption('Proposals only. No technician is dispatched, inventory is not verified, no window is reserved, and no part or contractor is ordered. Component diagnosis and approval come first.')
-        note = st.text_area('Inspection note (simulation)', max_chars=1500)
-        if st.form_submit_button('Save simulated review'):
-            try:
-                if not note.strip():
-                    raise ValueError('Add an inspection note before saving.')
-                saved_note = note + ('\nProposed follow-up (not executed): ' + '; '.join(followups) if followups else '')
-                reviews.save(order_id, state, saved_note, previous_review['version'] if previous_review else 0)
-                st.success('Simulated review saved. No external action was performed.')
-            except (ValueError, OSError) as exc:
-                st.error(str(exc))
-    subject, body = build_review_message({
-        'order_id': order_id, 'record_id': result.record_id, 'model_id': result.model_id,
-        'policy': f'{_FRIENDLY[policy_name]} ({_TECHNICAL[policy_name]})',
-        'decision': verdict, 'score': result.score, 'threshold': result.threshold,
-        'evidence': result.statements})
-    st.subheader('Simulated review notification')
-    st.caption('Default simulated: the message below is not sent anywhere. A real send would require '
-               'a separately authorized SNS topic and explicit live opt-in, published to that topic '
-               '(never to an arbitrary recipient list).')
-    with st.expander('Preview notification message'):
-        st.text(subject)
-        st.text(body)
-    outbox = notification_outbox(os.getenv('NOTIFY_OUTBOX_PATH', 'data/ai4i-notifications.sqlite'))
-    existing = outbox.get(NotificationOutbox.notification_id(order_id, subject, body, ['ops (simulated)']))
-    if st.button('Record simulated review notification'):
-        existing = outbox.send(order_id=order_id, subject=subject, body=body,
-                               recipients_display=['ops (simulated)'])
-    if existing is not None:
-        st.success(f'Notification {existing.notification_id}: status {existing.status} '
-                   f'(mode {existing.mode}, delivered={existing.delivered}, attempts={existing.attempts}). '
-                   'Accepted or simulated status never implies an email was delivered.')
-else:
-    st.write('No work order. A below-threshold result does not establish equipment safety.')
+        # Simulated review notification. Preview is always shown; recording it routes
+        # through the shared outbox in simulated mode (no publisher, no live opt-in), so
+        # nothing is ever sent and a page rerun cannot trigger a real send. The outbox
+        # is idempotent on the order id + content, so repeated presses do not duplicate.
+        order_id = result.order.order_id
+        from src.review import ReviewStore
+        reviews = ReviewStore(os.getenv('DEMO_LEDGER_PATH', 'data/ai4i-orders.sqlite'))
+        previous_review = reviews.get(order_id)
+        st.subheader('Technician review · simulated')
+        st.caption('Record a demo inspection outcome. Completion does not certify equipment safety, dispatch a technician, or alter the model result. Do not enter personal or sensitive information.')
+        if previous_review:
+            st.info(f"{previous_review['state']} · revision {previous_review['version']}")
+            st.write(previous_review['note'])
+        with st.form('review-' + order_id):
+            states = ['Acknowledged', 'Inspection pending', 'Review completed']
+            state = st.selectbox('Review disposition', states, index=states.index(previous_review['state']) if previous_review else 0)
+            followups = st.multiselect('Proposed follow-up for human review', [
+                'Request technician inspection', 'Check spare inventory after component confirmation',
+                'Draft work scope', 'Review a maintenance window',
+                'Evaluate specialist / contractor support', 'Review a parts request after diagnosis'])
+            st.caption('Proposals only. No technician is dispatched, inventory is not verified, no window is reserved, and no part or contractor is ordered. Component diagnosis and approval come first.')
+            note = st.text_area('Inspection note (simulation)', max_chars=1500)
+            if st.form_submit_button('Save simulated review'):
+                try:
+                    if not note.strip():
+                        raise ValueError('Add an inspection note before saving.')
+                    saved_note = note + ('\nProposed follow-up (not executed): ' + '; '.join(followups) if followups else '')
+                    reviews.save(order_id, state, saved_note, previous_review['version'] if previous_review else 0)
+                    st.success('Simulated review saved. No external action was performed.')
+                except (ValueError, OSError) as exc:
+                    st.error(str(exc))
+        subject, body = build_review_message({
+            'order_id': order_id, 'record_id': result.record_id, 'model_id': result.model_id,
+            'policy': f'{_FRIENDLY[policy_name]} ({_TECHNICAL[policy_name]})',
+            'decision': verdict, 'score': result.score, 'threshold': result.threshold,
+            'evidence': result.statements})
+        st.subheader('Simulated review notification')
+        st.caption('Default simulated: the message below is not sent anywhere. A real send would require '
+                   'a separately authorized SNS topic and explicit live opt-in, published to that topic '
+                   '(never to an arbitrary recipient list).')
+        with st.expander('Preview notification message'):
+            st.text(subject)
+            st.text(body)
+        outbox = notification_outbox(os.getenv('NOTIFY_OUTBOX_PATH', 'data/ai4i-notifications.sqlite'))
+        existing = outbox.get(NotificationOutbox.notification_id(order_id, subject, body, ['ops (simulated)']))
+        if st.button('Record simulated review notification'):
+            existing = outbox.send(order_id=order_id, subject=subject, body=body,
+                                   recipients_display=['ops (simulated)'])
+        if existing is not None:
+            st.success(f'Notification {existing.notification_id}: status {existing.status} '
+                       f'(mode {existing.mode}, delivered={existing.delivered}, attempts={existing.attempts}). '
+                       'Accepted or simulated status never implies an email was delivered.')
+    else:
+        st.write('No work order. A below-threshold result does not establish equipment safety.')
 
 # ── Details below, in expanders ──
 with st.expander('Evidence statements and ground truth'):
