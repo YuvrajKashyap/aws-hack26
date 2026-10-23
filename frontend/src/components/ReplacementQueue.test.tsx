@@ -8,7 +8,12 @@ import { addAction } from "../actions";
 describe("ReplacementQueue", () => {
   it("renders an ACT button for every queue row", () => {
     render(
-      <ReplacementQueue selectedId="C7" actionState={{}} onAct={() => {}} />,
+      <ReplacementQueue
+        items={replacementQueue}
+        selectedId="C7"
+        actionState={{}}
+        onAct={() => {}}
+      />,
     );
     const buttons = screen.getAllByRole("button", { name: /^Act on / });
     expect(buttons).toHaveLength(replacementQueue.length);
@@ -17,7 +22,12 @@ describe("ReplacementQueue", () => {
   it("calls onAct with the component id when ACT is clicked", async () => {
     const onAct = vi.fn();
     render(
-      <ReplacementQueue selectedId="C7" actionState={{}} onAct={onAct} />,
+      <ReplacementQueue
+        items={replacementQueue}
+        selectedId="C7"
+        actionState={{}}
+        onAct={onAct}
+      />,
     );
     const first = replacementQueue[0];
     await userEvent.click(
@@ -30,7 +40,12 @@ describe("ReplacementQueue", () => {
     const id = componentIdFor(replacementQueue[0].component);
     const state = addAction({}, id, "dispatch_tech");
     render(
-      <ReplacementQueue selectedId="C7" actionState={state} onAct={() => {}} />,
+      <ReplacementQueue
+        items={replacementQueue}
+        selectedId="C7"
+        actionState={state}
+        onAct={() => {}}
+      />,
     );
     expect(screen.getByText("Tech dispatched")).toBeInTheDocument();
   });
@@ -39,9 +54,31 @@ describe("ReplacementQueue", () => {
     const id = componentIdFor(replacementQueue[0].component);
     const state = addAction({}, id, "check_inventory");
     render(
-      <ReplacementQueue selectedId="C7" actionState={state} onAct={() => {}} />,
+      <ReplacementQueue
+        items={replacementQueue}
+        selectedId="C7"
+        actionState={state}
+        onAct={() => {}}
+      />,
     );
     // check_inventory has an empty badge label, so no badge pill appears.
     expect(screen.queryByText("Tech dispatched")).not.toBeInTheDocument();
+  });
+
+  it("renders an empty state when no items match the filters", () => {
+    render(
+      <ReplacementQueue
+        items={[]}
+        selectedId="C7"
+        actionState={{}}
+        onAct={() => {}}
+      />,
+    );
+    expect(
+      screen.getByText("No components match the current filters."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /^Act on / }),
+    ).not.toBeInTheDocument();
   });
 });

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { TopBar } from "./TopBar";
+import { PageHeader } from "./PageHeader";
 import { RippleChart } from "./RippleChart";
 import { ActionPanel } from "./ActionPanel";
 import { detailForRack } from "../data";
@@ -24,7 +24,7 @@ export function ActionScreen() {
   return (
     <div className="shell">
       <div className="wrap">
-        <TopBar />
+        <PageHeader />
 
         <nav aria-label="Breadcrumb">
           <button

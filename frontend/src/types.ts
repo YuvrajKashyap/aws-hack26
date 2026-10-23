@@ -16,12 +16,33 @@ export interface Kpi {
 
 export type RiskLevel = "critical" | "watch";
 
+/** Hardware category of a monitored component, used for filtering. */
+export type ComponentType = "psu" | "nvme" | "fan" | "dimm";
+
+/** Time window the dashboard scopes its risk view to. */
+export type TimeRangeId = "7d" | "14d" | "30d";
+
 export interface ReplacementItem {
   /** Failure-risk percentage shown in the ranked queue. */
   riskPct: number;
   level: RiskLevel;
   component: string;
   evidence: string;
+  /** Hardware category, used by the component-type filter. */
+  componentType: ComponentType;
+}
+
+/** Active dashboard filter selections. */
+export interface DashboardFilters {
+  /** Selected hall id (scope), e.g. "hall-2". */
+  hallId: string;
+  /** Selected time range. */
+  timeRange: TimeRangeId;
+  /**
+   * Selected component types. An empty set means "all types" (no filtering),
+   * which keeps the default view showing everything.
+   */
+  componentTypes: ReadonlySet<ComponentType>;
 }
 
 export interface RippleChart {

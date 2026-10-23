@@ -1,6 +1,10 @@
-import { replacementQueue, componentIdFor } from "../data";
+import { componentIdFor } from "../data";
 import { badgesForComponent } from "../actions";
-import type { ComponentActionState, RiskLevel } from "../types";
+import type {
+  ComponentActionState,
+  ReplacementItem,
+  RiskLevel,
+} from "../types";
 
 const riskColors: Record<RiskLevel, { background: string; color: string }> = {
   critical: { background: "#6B2420", color: "#FFC2BB" },
@@ -8,6 +12,8 @@ const riskColors: Record<RiskLevel, { background: string; color: string }> = {
 };
 
 interface Props {
+  /** Queue items to render (already filtered by the dashboard). */
+  items: ReplacementItem[];
   /** Currently selected component id (rack id, e.g. "C7"). */
   selectedId: string;
   /** Actions taken per component, used to render row status badges. */
@@ -16,7 +22,7 @@ interface Props {
   onAct: (componentId: string) => void;
 }
 
-export function ReplacementQueue({ selectedId, actionState, onAct }: Props) {
+export function ReplacementQueue({ items, selectedId, actionState, onAct }: Props) {
   return (
     <div className="card">
       <h2 style={{ margin: "0 0 4px", fontSize: 16, fontWeight: 600 }}>
@@ -25,7 +31,12 @@ export function ReplacementQueue({ selectedId, actionState, onAct }: Props) {
       <div className="sub" style={{ marginBottom: 8 }}>
         Ranked by failure risk
       </div>
-      {replacementQueue.map((item, i) => {
+      {items.length === 0 ? (
+        <div className="sub" style={{ padding: "12px 0" }}>
+          No components match the current filters.
+        </div>
+      ) : (
+        items.map((item, i) => {
         const id = componentIdFor(item.component);
         const badges = badgesForComponent(actionState, id);
         const isSelected = id === selectedId;
@@ -61,7 +72,8 @@ export function ReplacementQueue({ selectedId, actionState, onAct }: Props) {
             </button>
           </div>
         );
-      })}
+        })
+      )}
     </div>
   );
 }

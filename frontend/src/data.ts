@@ -1,9 +1,12 @@
 import type {
+  ComponentType,
+  DashboardFilters,
   Kpi,
   Rack,
   RackStatus,
   ReplacementItem,
   SelectedComponent,
+  TimeRangeId,
 } from "./types";
 
 export const location = {
@@ -11,7 +14,33 @@ export const location = {
   title: "Fleet health",
 };
 
-export const filters: string[] = ["Hall 2", "Next 14 days", "All component types"];
+/** Halls an operator can scope the dashboard to (single-select). */
+export const hallOptions: { id: string; label: string }[] = [
+  { id: "hall-1", label: "Hall 1" },
+  { id: "hall-2", label: "Hall 2" },
+  { id: "hall-3", label: "Hall 3" },
+];
+
+/** Default hall shown on load (matches the breadcrumb). */
+export const defaultHallId = "hall-2";
+
+/** Time ranges for the segmented control. */
+export const timeRangeOptions: { id: TimeRangeId; label: string; days: number }[] = [
+  { id: "7d", label: "7 days", days: 7 },
+  { id: "14d", label: "14 days", days: 14 },
+  { id: "30d", label: "30 days", days: 30 },
+];
+
+/** Default time range shown on load. */
+export const defaultTimeRange: TimeRangeId = "14d";
+
+/** Component types for the multi-select filter. */
+export const componentTypeOptions: { id: ComponentType; label: string }[] = [
+  { id: "psu", label: "PSU" },
+  { id: "nvme", label: "NVMe" },
+  { id: "fan", label: "Fan" },
+  { id: "dimm", label: "DIMM" },
+];
 
 export const kpis: Kpi[] = [
   { label: "Fleet health score", value: "94.2", sub: "Sample data" },
@@ -67,24 +96,28 @@ export const replacementQueue: ReplacementItem[] = [
     level: "critical",
     component: "PSU-2, rack C7",
     evidence: "12V rail ripple rising for 6 days",
+    componentType: "psu",
   },
   {
     riskPct: 81,
     level: "critical",
     component: "NVMe drive 14, rack A3",
     evidence: "Reallocated sectors climbing",
+    componentType: "nvme",
   },
   {
     riskPct: 68,
     level: "watch",
     component: "Fan tray 3, rack B6",
     evidence: "RPM variance above baseline",
+    componentType: "fan",
   },
   {
     riskPct: 54,
     level: "watch",
     component: "DIMM B4, rack D2",
     evidence: "Correctable ECC errors trending up",
+    componentType: "dimm",
   },
 ];
 
@@ -205,5 +238,28 @@ export function detailForRack(rackId: string): SelectedComponent {
       ...healthyChart,
       ariaLabel: `Line chart for rack ${rackId} showing a steady value below the alert threshold`,
     },
+  };
+}
+
+/**
+ * Filters the replacement queue by the active component-type selection.
+ * An empty selection means "all types", so the full queue is returned
+ * unchanged. Hall and time range scope the view conceptually but do not
+ * alter this sample dataset, so they are not applied here.
+ */
+export function filterQueue(
+  queue: ReplacementItem[],
+  componentTypes: ReadonlySet<ComponentType>,
+): ReplacementItem[] {
+  if (componentTypes.size === 0) return queue;
+  return queue.filter((item) => componentTypes.has(item.componentType));
+}
+
+/** Default filter selections used on first load. */
+export function defaultFilters(): DashboardFilters {
+  return {
+    hallId: defaultHallId,
+    timeRange: defaultTimeRange,
+    componentTypes: new Set<ComponentType>(),
   };
 }
