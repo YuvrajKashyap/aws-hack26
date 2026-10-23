@@ -1,16 +1,13 @@
 """Machine maintenance console for the AI4I dataset experiment.
 
 Kept distinct from the fictional press simulation. The interactive machine
-explorer is the primary workspace; measured evaluation, full policy comparison,
-model identities, detailed limitations and raw order JSON live in expanders below.
+explorer is the primary workspace; model benchmarks live in the separate Model lab.
 """
 import hashlib
-import json
 import os
 from pathlib import Path
 import sys
 
-import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
@@ -18,11 +15,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src.orchestrator import configured_provider
 
 st.set_page_config(page_title='Machine maintenance console', layout='wide')
-from src.ui import console_style, stages
+from src.ui import console_style
 console_style()
 st.title('Machine maintenance console')
-st.markdown('<p class="intro">A clearer view of what needs attention. Inspect a machining-cell observation, compare the evidence, and prepare a simulated technician review.</p>', unsafe_allow_html=True)
-stages()
+st.caption('Inspect the assembly. Review the evidence. Choose a proposed next step.')
 mode = os.getenv('DEMO_MODE', 'offline')
 # Short simulation / provenance line stays visible at all times.
 st.info(f'{mode.upper()} EXPLANATIONS · PUBLISHED SYNTHETIC AI4I DATA · SIMULATED REVIEW ORDERS · '
@@ -30,7 +26,7 @@ st.info(f'{mode.upper()} EXPLANATIONS · PUBLISHED SYNTHETIC AI4I DATA · SIMULA
 
 try:
     from src.ai4i import FEATURES, TARGET, fit_baseline, run_record
-    from src.policy import POLICIES, build_policy, compare_policies, explorer_zones
+    from src.policy import POLICIES, build_policy, explorer_zones
     from src.explorer import render_machine_explorer
     from src.scene import render_3d_explorer
     from src.notifications import NotificationOutbox, build_review_message
@@ -56,12 +52,6 @@ def provider(selected_mode):
 
 
 @st.cache_resource
-def policy_comparison(path, digest):
-    # Validation-selected RF/GB/hybrid operating points; measured on the existing split.
-    return compare_policies(path, load_baseline(path, digest))
-
-
-@st.cache_resource
 def policy_for(path, digest, name):
     # One fitted policy per name, cached per dataset so identities stay stable.
     return build_policy(name, path, load_baseline(path, digest))
@@ -76,7 +66,6 @@ csv_path = str(csv.resolve())
 csv_digest = hashlib.sha256(csv.read_bytes()).hexdigest()
 try:
     bundle = load_baseline(csv_path, csv_digest)
-    comparison = policy_comparison(csv_path, csv_digest)
 except (ValueError, OSError) as exc:
     st.error(f'Dataset rejected: {exc}')
     st.stop()
@@ -92,27 +81,21 @@ _TECHNICAL = {'random_forest': 'Random forest', 'gradient_boosting': 'Gradient b
               'hybrid_rf_gb': 'Hybrid RF + GB'}
 
 
-def _tradeoff(name):
-    e = comparison['policies'][name]
-    cm = e['test']['confusion_matrix']
-    return (f"recall {e['test']['recall']:.0%} · precision {e['test']['precision']:.0%} · "
-            f"{cm[0][1]} false alerts · {cm[1][0]} missed")
-
-
-# ── Primary controls: compact selectors + Assess, then the explorer workspace ──
-left, right = st.columns([1, 1])
-with left:
+with st.sidebar:
+    st.subheader('Observation controls')
     policy_name = st.selectbox('Operating policy', POLICIES,
         format_func=lambda n: f'{_FRIENDLY[n]} ({_TECHNICAL[n]})')
-    st.caption('Measured tradeoff — ' + _tradeoff(policy_name))
-with right:
     heldout = bundle.heldout.set_index('UDI').sort_index()
-    uid = st.selectbox('Dataset record (not a machine ID or time sequence)', heldout.index.tolist())
+    ids = heldout.index.tolist()
+    uid = st.selectbox('Dataset record (not a machine ID or time sequence)', ids,
+                      index=ids.index(2016) if 2016 in ids else 0)
+    st.caption('Demo: record 2016 requests review; record 2 is below the RF threshold. Independent observations, not a timeline.')
+    assess = st.button('Assess record', type='primary')
+    view = st.radio('Inspection view', ['3D assembly', '2D schematic'])
+    st.caption('Model evaluation and tradeoffs are in Model lab.')
 
 row = heldout.loc[uid]
 active_policy = policy_for(csv_path, csv_digest, policy_name)
-assess = st.button('Assess record', type='primary')
-
 if assess:
     try:
         with st.spinner('Classifying and validating evidence…'):
@@ -133,15 +116,24 @@ current_key = (str(uid), policy_name)
 # Stale guard: never show a result from a different record or policy as current.
 stale = result is not None and result_key != current_key
 
-if result is None or stale:
+zones = explorer_zones(row[FEATURES].to_dict())
+current_result = result if result is not None and not stale else None
+assessment = {
+    'record_id': str(uid), 'policy': _TECHNICAL[policy_name],
+    'decision': ('Abstained' if current_result.predicted_failure is None else
+        'Review flagged' if current_result.predicted_failure else 'Below threshold') if current_result else 'Not assessed',
+    'explanation_mode': current_result.explanation_mode if current_result else 'Not requested',
+    'score': current_result.score if current_result else None,
+    'threshold': current_result.threshold if current_result else active_policy.threshold,
+}
+render_explorer = render_3d_explorer if view == '3D assembly' else render_machine_explorer
+# The 2D renderer expects these legacy fields too.
+assessment.update(model_id=active_policy.model_id, predicted_failure=current_result.predicted_failure if current_result else None)
+components.html(render_explorer(zones, assessment), height=740 if view == '3D assembly' else 560, scrolling=True)
+if current_result is None:
     if stale:
-        st.warning('Selection changed since the last assessment. Press **Assess record** to evaluate '
-                   f'record {uid} with “{_FRIENDLY[policy_name]}”.')
-    else:
-        st.info('Choose a policy and a record, then press **Assess record** to populate the machine explorer.')
-        st.markdown('<div class="empty-scene"><strong>Your next decision starts here.</strong><p>Drive / spindle · Process chamber · Tool head<br>Assess an observation to explore the original 3D machining cell and its recorded evidence.</p></div>', unsafe_allow_html=True)
-    st.caption('Global machine-level classifier result. Zones below show observed readings as evidence; '
-               'they are not a component-level diagnosis.')
+        st.warning('Selection changed. Previous decision hidden; press Assess record for this observation.')
+    st.info('Readings are ready to explore. Press Assess record in the sidebar to request a decision and explanation. No live Bedrock request or order is triggered by opening this view.')
     st.stop()
 
 # ── Result summary + explorer as the main workspace ──
@@ -159,19 +151,24 @@ if result.explanation_mode == 'fallback':
 for flag in result.quality_flags:
     st.warning(flag)
 
-zones = explorer_zones(result.observation.model_dump(by_alias=True))
-view = st.radio('Inspection view', ['3D assembly', '2D schematic'], horizontal=True)
-render_explorer = render_3d_explorer if view == '3D assembly' else render_machine_explorer
-explorer_html = render_explorer(zones, {
-    'record_id': result.record_id, 'model_id': result.model_id,
-    'policy': f'{_FRIENDLY[policy_name]} ({_TECHNICAL[policy_name]})',
-    'score': result.score, 'threshold': result.threshold,
-    'predicted_failure': result.predicted_failure,
-    'explanation_mode': result.explanation_mode})
-components.html(explorer_html, height=740 if view == '3D assembly' else 560, scrolling=True)
+with st.expander('Explanation engine and Bedrock status'):
+    st.write('Result explanation mode: **' + result.explanation_mode + '**')
+    st.caption('Live Bedrock selects supporting evidence IDs from known facts. The local classifier makes the prediction; fixed policy creates a simulated review order. This is not an autonomous multi-agent maintenance decision.')
+    if mode == 'offline':
+        st.write('Offline: no Bedrock API request. The evidence statements below are generated locally.')
+    else:
+        st.write('Configured inference profile: ' + os.getenv('BEDROCK_MODEL_ID', 'not configured'))
+        st.caption('A fallback result means the live request failed or its evidence selection was rejected.')
 
 if result.order:
     st.warning('SIMULATED technician-review order created. No part or maintenance slot reserved.')
+    with st.expander('Guided case walkthrough · observation to remediation review', expanded=True):
+        st.markdown('''1. **Inspect the observation.** Click the assembly zones and review the measured inputs and global assessment. A dataset failure label is not a diagnosis of a particular part.
+2. **Acknowledge the concern.** Save an acknowledgment with a simulation note. The order is retained for this exact assessment.
+3. **Plan an inspection.** Choose Inspection pending, propose technician inspection and work scope, and describe what needs verification.
+4. **Review remediation options.** Propose inventory verification, parts-request review, a maintenance window, or specialist support only as appropriate after diagnosis. No stock, part, or repair need is established by this classifier.
+5. **Record the review outcome.** In this rehearsal, save Review completed with a note describing the proposed plan and unresolved checks. This completes the simulated review, not a repair or safety clearance.
+6. **Preview the communication.** Inspect or record the simulated notification below. No email is delivered and no operational action is executed.''')
 
     # Simulated review notification. Preview is always shown; recording it routes
     # through the shared outbox in simulated mode (no publisher, no live opt-in), so
@@ -235,43 +232,10 @@ with st.expander('Evidence statements and ground truth'):
     actual = int(heldout.loc[int(result.record_id), TARGET])
     st.caption(f'Dataset ground-truth class: {actual}. Shown for inspection only; never passed to prediction or Bedrock.')
 
-with st.expander('Held-out evaluation (validation-selected baseline)'):
-    st.caption('Fixed 60/20/20 stratified split. Threshold selected on validation F2; test data never used to choose it.')
-    c1, c2, c3 = st.columns(3)
-    c1.metric('Test precision', f"{report['test']['precision']:.1%}")
-    c2.metric('Test recall', f"{report['test']['recall']:.1%}")
-    c3.metric('Test average precision', f"{report['test']['average_precision']:.3f}")
-    st.dataframe(pd.DataFrame(report['test']['confusion_matrix'],
-        index=['Actual nonfailure', 'Actual failure'], columns=['Predicted nonfailure', 'Predicted failure']))
-    st.write('Always-nonfailure baseline', report['most_frequent_baseline'])
-    st.caption('Synthetic-dataset classification results, not factory performance or future failure forecasting.')
-
-with st.expander('Full policy comparison and model identities'):
-    tech_rows = []
-    for name in POLICIES:
-        entry = comparison['policies'][name]
-        cm = entry['test']['confusion_matrix']
-        tech_rows.append({'Policy': _TECHNICAL[name], 'Preset': _FRIENDLY[name],
-                          'Weight (RF share)': '—' if entry['weight'] is None else f"{entry['weight']:.2f}",
-                          'Threshold': entry['threshold'],
-                          'Validation F2': round(entry['validation']['f2'], 4),
-                          'Test precision': round(entry['test']['precision'], 4),
-                          'Test recall': round(entry['test']['recall'], 4),
-                          'Test AP': round(entry['test']['average_precision'], 4),
-                          'Test F2': round(entry['test']['f2'], 4),
-                          'False alerts': cm[0][1], 'Missed failures': cm[1][0],
-                          'Model ID': entry['model_id']})
-    st.dataframe(pd.DataFrame(tech_rows), hide_index=True, width='stretch')
-    st.caption('Weight and threshold are chosen on validation F2 only, frozen before test scoring. '
-               'Each model identity embeds the recipe, weight and threshold so cached explanations and '
-               'ledger orders cannot be confused between policies. No policy is claimed best.')
-
 with st.expander('Detailed limitations'):
     for limitation in result.limitations:
         st.caption(limitation)
 
-with st.expander('Raw simulated order and evaluation JSON'):
+with st.expander('Raw simulated order'):
     if result.order:
         st.json(result.order.model_dump(mode='json'))
-    st.download_button('Download evaluation including split IDs',
-        data=json.dumps(report, indent=2), file_name='ai4i-evaluation.json', mime='application/json')

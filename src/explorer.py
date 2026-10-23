@@ -12,6 +12,8 @@ import json
 
 
 def _verdict_text(assessment: dict) -> tuple[str, str]:
+    if assessment.get('decision') == 'Not assessed':
+        return 'NOT ASSESSED', 'cyan'
     predicted = assessment.get('predicted_failure')
     if predicted is None:
         return 'ABSTAINED', 'amber'
@@ -179,7 +181,7 @@ def render_machine_explorer(zones: list[dict], assessment: dict, *, height: int 
   function renderGlobal() {{
     const v = document.getElementById('verdict');
     v.textContent = a.verdict; v.className = 'verdict ' + (a.accent || 'cyan');
-    const score = (a.score === null || a.score === undefined) ? 'abstained' : Number(a.score).toFixed(4);
+    const score = (a.score === null || a.score === undefined) ? (a.verdict === 'NOT ASSESSED' ? 'not assessed' : 'abstained') : Number(a.score).toFixed(4);
     const thr = (a.threshold === null || a.threshold === undefined) ? '—' : Number(a.threshold).toFixed(2);
     document.getElementById('meta').innerHTML =
       '<b>Record</b> ' + esc(a.record_id) + ' · <b>policy</b> ' + esc(a.policy || '—') + '<br>' +

@@ -2,6 +2,8 @@
 
 Manufacturing Track 2: predictive maintenance from sensor evidence to simulated maintenance actions.
 
+**Current two-page UI:** `streamlit run app.py` opens the **Technician console** directly into the 3D machining cell. Record 2016 is the default flagged-case rehearsal; click Assess record, then follow the guided remediation review. **Model lab** contains the three operating policies and all five benchmark families. The separate fictional replay remains in `src/replay_page.py` and the CLI; it is no longer a product navigation page. Earlier walkthrough screenshots and page names predate this navigation update.
+
 **Presenting with the team:** [download the presentation guide PDF](output/pdf/manufacturing-team-presentation-guide.pdf) or read the [editable guide and five-minute script](docs/team-presentation-guide.md).
 
 Start with the [numbered code and user walkthrough](docs/00-code-walkthrough.md) to read both workflows in execution order.

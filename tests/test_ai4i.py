@@ -134,9 +134,10 @@ def test_dataset_dashboard_replays_without_aws(dataset, tmp_path, monkeypatch):
     monkeypatch.setenv('NOTIFY_OUTBOX_PATH', str(tmp_path / 'notify.sqlite'))
     app = AppTest.from_file(str(page), default_timeout=30).run()
     assert not app.exception
-    # Title names the console; explorer is not shown before an assessment.
+    # Readings and geometry are visible before assessment, without a decision.
     assert any('Machine maintenance console' in t.value for t in app.title)
-    assert len(app.get('iframe')) == 0
+    assert len(app.get('iframe')) == 1
+    assert 'Not assessed' in app.get('iframe')[0].proto.srcdoc
     # Assess the default record and policy.
     app.button[0].click().run()
     assert not app.exception
@@ -144,6 +145,31 @@ def test_dataset_dashboard_replays_without_aws(dataset, tmp_path, monkeypatch):
     assert any(getattr(m, 'label', '') == 'Decision' for m in app.metric)
     iframes = app.get('iframe')
     assert iframes and 'GLOBAL ASSESSMENT' in iframes[0].proto.srcdoc
+
+
+def test_model_lab_runs_all_benchmarks_without_actions(dataset, monkeypatch):
+    from streamlit.testing.v1 import AppTest
+    monkeypatch.setenv('AI4I_CSV', str(dataset))
+    monkeypatch.setenv('DEMO_MODE', 'offline')
+    app = AppTest.from_file('pages/2_Model_Lab.py', default_timeout=60).run()
+    assert not app.exception
+    assert app.title[0].value == 'Model lab'
+    assert len(app.dataframe) == 2
+    assert len(app.dataframe[0].value) == 3
+    assert len(app.dataframe[1].value) == 5
+    assert 'Accuracy' in app.dataframe[1].value.columns
+    assert not app.get('iframe')
+
+
+def test_entry_point_opens_unassessed_machine(dataset, monkeypatch):
+    from streamlit.testing.v1 import AppTest
+    monkeypatch.setenv('AI4I_CSV', str(dataset))
+    monkeypatch.setenv('DEMO_MODE', 'offline')
+    app = AppTest.from_file('app.py', default_timeout=30).run()
+    assert not app.exception
+    assert len(app.get('iframe')) == 1
+    assert 'Not assessed' in app.get('iframe')[0].proto.srcdoc
+    assert not app.metric
 
 
 def test_dataset_dashboard_hides_stale_result_when_record_changes(dataset, tmp_path, monkeypatch):
@@ -157,10 +183,11 @@ def test_dataset_dashboard_hides_stale_result_when_record_changes(dataset, tmp_p
     app.button[0].click().run()
     assert len(app.get('iframe')) == 1
     # Changing the record selector must retract the previous result immediately.
-    record_select = app.selectbox[1]
+    record_select = next(x for x in app.selectbox if x.label.startswith('Dataset record'))
     record_select.select(record_select.options[1]).run()
     assert not app.exception
-    assert len(app.get('iframe')) == 0
+    assert len(app.get('iframe')) == 1
+    assert 'Not assessed' in app.get('iframe')[0].proto.srcdoc
     assert any('Selection changed' in w.value for w in app.warning)
 
 
@@ -174,7 +201,8 @@ def test_dataset_dashboard_hides_stale_result_when_policy_changes(dataset, tmp_p
     app.button[0].click().run()
     assert len(app.get('iframe')) == 1
     # Switching the operating policy must retract the previous result too.
-    app.selectbox[0].select('gradient_boosting').run()
+    next(x for x in app.selectbox if x.label == 'Operating policy').select('gradient_boosting').run()
     assert not app.exception
-    assert len(app.get('iframe')) == 0
+    assert len(app.get('iframe')) == 1
+    assert 'Not assessed' in app.get('iframe')[0].proto.srcdoc
     assert any('Selection changed' in w.value for w in app.warning)
