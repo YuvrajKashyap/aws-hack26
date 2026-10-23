@@ -2,6 +2,14 @@
 
 Reviewed October 23 against Viswa PR5 head `e4deb74` and Pranav PR6 head `3901460`. Neither branch was overwritten or force-pushed.
 
+Final cleanup: after rechecking the unchanged contribution heads, PR5 and PR6 were closed at the owner's request with review explanations. PR8, a main-to-vishwaa sync request, was also closed. All teammate branches and commits remain preserved. The references below to deferral describe the earlier review decision, not currently open PR status.
+
+## Inference and agent terminology
+
+The active manufacturing console is an orchestrated decision-support workflow, not an autonomous multi-agent system. Scikit-learn performs classifier inference; in offline mode no generative-model API is called. In configured live mode, Amazon Bedrock Converse performs bounded evidence-ID selection. Intake, deterministic diagnosis/planning, and ledger modules are software roles, not separate LLM agents. Do not describe them as seven deployed agents.
+
+Viswa's isolated PR branch does implement a supervisor and specialist tool-calling crew through Bedrock. That is meaningful experimental work, but it is not integrated into the active manufacturing app or verified as part of the presentation baseline. The successful offline product demo does not establish compliance with any separate organizer requirement for multiple live AI agents. If that requirement is mandatory, it remains a functional gap rather than a wording change.
+
 ## Viswa
 
 Kept the useful opt-in random simulator scenario support from `bdf23da`, while retaining seed 7 as the stable default for existing demonstrations and tests. `Simulator(seed=None)` requests a fresh scenario; `SIM_SEED` can make that opt-in path reproducible. The simulator stays an isolated fictional CRAC experiment, never input to the AI4I classifier.
